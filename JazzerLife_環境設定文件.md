@@ -181,6 +181,16 @@ Start-WebAppPool -Name "JazzerLifeAppPool"
 | 專案類型 | ASP.NET Core Web API | 同左 |
 | 資料存取 | Entity Framework Core（由既有 JazzerLife 資料庫 Scaffold 產生 Model） | 同左 |
 
+### 登入 Cookie 與 HTTPS 的眉角
+
+- `Program.cs` 的登入 Cookie 預設 `SecurePolicy = Always`（只允許 HTTPS 才會傳送 Cookie），正式機有 HTTPS 沒問題，但**測試機（KAZUO）只有 HTTP:8080，會導致登入後 Cookie 傳不回來、一直被當成未登入**。
+- 已改成從設定讀取：`builder.Configuration.GetValue<bool>("Auth:RequireHttpsCookie", true)`，預設 `true`（維持正式機安全性，不用改正式機的 appsettings.json）。
+- **測試機的 `appsettings.json` 需要加上：**
+  ```json
+  "Auth": { "RequireHttpsCookie": false }
+  ```
+  才能在 HTTP 環境下正常登入。這個設定不進版控，換新測試機或重建 appsettings.json 時容易忘記，要記得補上。
+
 ### 專案結構（節錄）
 
 ```
@@ -379,3 +389,10 @@ git config --global --add safe.directory <資料夾路徑>
 - [ ] Python 腳本存放位置決策待定（目前維持與 JazzerLifeApi 平行、專案外部）。
 - [ ] 階段五：應用程式集區權限最小化複查、Hangfire Dashboard 壓力測試、SQL Server 對外埠是否封閉之確認。
 - [ ] 若正式機 IP（192.168.1.101）未來變動，需同步更新測試機的 `appsettings.json` 連線字串。
+
+---
+
+## 十一、與 Claude 協作備註
+
+- **每次程式碼異動後，Claude 都要主動提供驗證方式**（例如要跑哪個指令、測哪支 API、預期看到什麼結果），不要只說改完了。
+- **測試機（KAZUO）上測試用的暫存檔案一律放在 `E:\temp`**（例如驗證用的測試 CSV、大檔案等），不要放 `C:\temp` 或其他路徑。

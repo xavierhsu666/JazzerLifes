@@ -21,8 +21,13 @@ builder.Services.AddHangfireServer(); builder.Services.AddAuthentication(Microso
 	.AddCookie(options =>
 	{
 		options.Cookie.Name = "JazzerLifeAuth";
-		options.Cookie.HttpOnly = true;              // JS Ū����A�� XSS �Ѩ�
-		options.Cookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.Always; // �u���\ HTTPS �ǿ�
+		options.Cookie.HttpOnly = true;              // 前端 JS 讀不到，防 XSS 竊取
+		// 預設只允許 HTTPS 才會傳送 Cookie（Secure）；測試機沒有 HTTPS，
+		// 可在 appsettings.json 加上 "Auth": { "RequireHttpsCookie": false } 改成 HTTP 也能傳送
+		var requireHttpsCookie = builder.Configuration.GetValue<bool>("Auth:RequireHttpsCookie", true);
+		options.Cookie.SecurePolicy = requireHttpsCookie
+			? Microsoft.AspNetCore.Http.CookieSecurePolicy.Always
+			: Microsoft.AspNetCore.Http.CookieSecurePolicy.SameAsRequest;
 		options.Cookie.SameSite = SameSiteMode.Lax;
 		options.ExpireTimeSpan = TimeSpan.FromHours(8);
 		options.SlidingExpiration = true;

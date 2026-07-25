@@ -417,6 +417,45 @@ button {
     display: none;
 }
 
+/* ==================== PWA 獨立視窗模式（加到主畫面後全螢幕開啟） ==================== */
+/* 因為使用 viewport-fit=cover + 半透明狀態列，需自行避開瀏海/狀態列與底部手勢區 */
+@media all and (display-mode: standalone) {
+    .top-navbar {
+        height: calc(var(--navbar-height) + env(safe-area-inset-top));
+        padding-top: env(safe-area-inset-top);
+    }
+
+    .sidebar {
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    /* 平板／桌面尺寸的獨立視窗模式：手機尺寸的底部間距已由 .app-bottom-nav 那段負責 */
+    .main-content {
+        padding-bottom: calc(var(--spacing-xl) + env(safe-area-inset-bottom));
+    }
+
+    .floating-menu-btn {
+        bottom: calc(24px + env(safe-area-inset-bottom));
+    }
+}
+
+.ca-selection-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.ca-selection-bar.hidden {
+    display: none;
+}
+
+.ca-selection-label {
+    color: #b0b0b0;
+    font-size: 14px;
+}
+
 @keyframes fadeIn {
     from {
         opacity: 0;
@@ -1114,6 +1153,12 @@ button {
     }
 }
 
+/* ==================== 手機版底部導覽列 ==================== */
+/* 預設（桌面/平板）隱藏，比照 car 模組樣式，只在手機寬度顯示 */
+.app-bottom-nav {
+    display: none;
+}
+
 /* 手機 (< 768px) */
 @media (max-width: 767px) {
     :root {
@@ -1121,17 +1166,56 @@ button {
         --sidebar-collapsed-width: 0;
     }
 
-    /* 顯示懸浮按鈕 */
+    /* 改用底部導覽列取代懸浮按鈕 */
     .floating-menu-btn {
-        display: flex;
-        bottom: 20px;
-        right: 20px;
-        width: 52px;
-        height: 52px;
+        display: none;
     }
 
-    .floating-menu-icon {
+    .app-bottom-nav {
+        display: flex;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background-color: var(--color-secondary);
+        border-top: 1px solid var(--color-gray-800);
+        box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.3);
+        z-index: 1500;
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    .app-bottom-nav-item {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        padding: 8px 2px 6px;
+        color: var(--color-text-secondary);
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        transition: color var(--transition-fast);
+        /* 觸控熱區至少 44px 高，符合基本觸控可用性建議 */
+        min-height: 48px;
+    }
+
+    .app-bottom-nav-item:active {
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+
+    .app-bottom-nav-icon {
         font-size: 1.25rem;
+        line-height: 1;
+    }
+
+    .app-bottom-nav-label {
+        font-size: 0.6875rem;
+        font-weight: 500;
+    }
+
+    .app-bottom-nav-item.active {
+        color: var(--color-accent-blue);
     }
 
     /* 側邊欄在手機上預設隱藏 */
@@ -1182,9 +1266,10 @@ button {
         display: none;
     }
 
-    /* 主內容區 */
+    /* 主內容區：底部留出底部導覽列的高度，避免內容被蓋住 */
     .main-content {
         padding: var(--spacing-md);
+        padding-bottom: calc(64px + env(safe-area-inset-bottom));
     }
 
     .view-header {
@@ -1198,10 +1283,39 @@ button {
 
     .view-actions {
         width: 100%;
+        flex-wrap: wrap;
+        gap: var(--spacing-sm);
     }
 
     .view-actions button {
         flex: 1;
+    }
+
+    /* 觸控熱區優化：手機上所有可點擊控制項至少 44px 高，符合基本觸控可用性建議 */
+    .btn-primary,
+    .btn-secondary,
+    .btn-danger,
+    .mode-switch button {
+        min-height: 44px;
+    }
+
+    .filter-input,
+    .sort-control select,
+    .sort-control input,
+    .pd-form input,
+    .pd-form select,
+    #pdMonth {
+        min-height: 44px;
+    }
+
+    .filter-input {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .view-actions .filter-input,
+    .view-actions .sort-control {
+        flex: 1 1 100%;
     }
 
     /* 圖表與表格 */
@@ -1211,6 +1325,49 @@ button {
 
     .ag-theme-quartz-dark {
         height: 400px;
+    }
+
+    /* 表格橫向拖曳優化：慣性滾動、加粗捲軸、左右邊緣淡出提示「還能滑」 */
+    .table-container {
+        position: relative;
+        overflow: hidden;
+        padding-left: var(--spacing-sm);
+        padding-right: var(--spacing-sm);
+    }
+
+    .table-container::before,
+    .table-container::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 16px;
+        pointer-events: none;
+        z-index: 5;
+    }
+
+    .table-container::before {
+        left: 0;
+        background: linear-gradient(to right, var(--color-secondary), transparent);
+    }
+
+    .table-container::after {
+        right: 0;
+        background: linear-gradient(to left, var(--color-secondary), transparent);
+    }
+
+    .ag-theme-quartz-dark .ag-body-horizontal-scroll-viewport,
+    .ag-theme-quartz-dark .ag-center-cols-viewport {
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .ag-theme-quartz-dark ::-webkit-scrollbar {
+        height: 8px;
+    }
+
+    .ag-theme-quartz-dark ::-webkit-scrollbar-thumb {
+        background: var(--color-gray-600);
+        border-radius: 999px;
     }
 
     /* 統計卡片 */
