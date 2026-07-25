@@ -3,12 +3,21 @@
 
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>JazzerLife Finance - 個人財務管理系統</title>
 
-  <!-- Highcharts -->
-  <script src="https://code.highcharts.com/highcharts.js"></script>
-  <script src="https://code.highcharts.com/modules/exporting.js"></script>
+  <!-- PWA：手機「加到主畫面」後可全螢幕開啟，體驗接近原生 App -->
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Finance" />
+  <link rel="apple-touch-icon" href="/assets/image/apple-touch-icon.png" />
+
+  <!-- Highcharts（改用 cdnjs，避免 code.highcharts.com 官方 CDN 的速率限制在測試期間一直 429） -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highcharts/11.4.8/highcharts.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highcharts/11.4.8/modules/exporting.js"></script>
 
 
   <!-- 自訂樣式 -->
@@ -174,9 +183,6 @@
       <section class="content-view hidden" id="view-cash-flow" data-view="cash-flow">
         <div class="view-header">
           <h2 class="view-title">現金流</h2>
-          <div class="view-actions">
-            <button class="btn-secondary" id="btnAddProject">新增專案</button>
-          </div>
         </div>
 
         <!-- 圖表容器 -->
@@ -243,7 +249,6 @@
             <button class="btn-secondary" id="btnEditTransaction_details">儲存變更</button>
           </div>
         </div>
-        <!-- 圖表容器 -->
         <div class="chart-container">
           <div id="transactionDetailsTrendChart"></div>
         </div>
@@ -266,7 +271,6 @@
             <button class="btn-secondary" id="btnEditTransaction_income_details">儲存變更</button>
           </div>
         </div>
-        <!-- 圖表容器 -->
         <div class="chart-container">
           <div id="transactionIncomeDetailsTrendChart"></div>
         </div>
@@ -290,7 +294,6 @@
             <button class="btn-secondary" id="btnEditTransaction_expense_details">儲存變更</button>
           </div>
         </div>
-        <!-- 圖表容器 -->
         <div class="chart-container">
           <div id="transactionExpenseDetailsTrendChart"></div>
         </div>
@@ -322,6 +325,10 @@
         </div>
         <div class="chart-container">
           <div id="categoryAnalysisChart"></div>
+        </div>
+        <div class="ca-selection-bar hidden" id="caSelectionBar">
+          <span class="ca-selection-label" id="caSelectionLabel"></span>
+          <button class="btn-secondary" id="caClearSelection">顯示全部月份</button>
         </div>
         <div class="table-container">
           <div id="categoryPivotGrid" class="ag-theme-quartz-dark"></div>
@@ -622,6 +629,34 @@
       </section>
     </main>
   </div>
+
+  <!-- 手機版底部導覽列（比照 car 模組樣式，僅收錄最常用的 5 個功能，其餘收在「更多」裡） -->
+  <nav class="app-bottom-nav" id="appBottomNav" aria-label="主要功能">
+    <div class="app-bottom-nav-item nav-item active" data-feature="overview">
+      <span class="app-bottom-nav-icon">📊</span>
+      <span class="app-bottom-nav-label">總覽</span>
+    </div>
+    <div class="app-bottom-nav-item nav-item" data-feature="details">
+      <span class="app-bottom-nav-icon">📝</span>
+      <span class="app-bottom-nav-label">明細</span>
+    </div>
+    <div class="app-bottom-nav-item nav-item" data-feature="projects">
+      <span class="app-bottom-nav-icon">📁</span>
+      <span class="app-bottom-nav-label">專案</span>
+    </div>
+    <div class="app-bottom-nav-item nav-item" data-feature="bills">
+      <span class="app-bottom-nav-icon">🧾</span>
+      <span class="app-bottom-nav-label">帳單</span>
+    </div>
+    <div class="app-bottom-nav-item nav-item" data-feature="accounts">
+      <span class="app-bottom-nav-icon">🏦</span>
+      <span class="app-bottom-nav-label">帳戶</span>
+    </div>
+    <div class="app-bottom-nav-item" id="appBottomNavMore">
+      <span class="app-bottom-nav-icon">☰</span>
+      <span class="app-bottom-nav-label">更多</span>
+    </div>
+  </nav>
 
   <!-- Modal 模板 -->
   <div class="modal-overlay hidden" id="modalOverlay">

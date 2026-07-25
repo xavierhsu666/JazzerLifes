@@ -61,23 +61,16 @@ namespace JazzerLifeApi.Endpoints
                     result.Add(new { Type = "Net", d.YearMonth, total = d.Net });
                 }
 
-                var latestMonth = accounts
-                    .Where(a => a.CreatedAt != null)
-                    .Select(a => a.CreatedAt!.Value)
-                    .DefaultIfEmpty(DateTime.MinValue)
-                    .Max();
-                var latestYearMonth = $"{latestMonth.Year}-{latestMonth.Month:D2}";
-
                 var recentMonths = result
                     .Select(r => (string)r.GetType().GetProperty("YearMonth")!.GetValue(r)!)
                     .Distinct()
-                    .Where(ym => ym != latestYearMonth)
                     .OrderByDescending(ym => ym)
                     .Take(14)
                     .ToHashSet();
 
                 var filtered = result
                     .Where(r => recentMonths.Contains((string)r.GetType().GetProperty("YearMonth")!.GetValue(r)!))
+                    .OrderBy(r => (string)r.GetType().GetProperty("YearMonth")!.GetValue(r)!)
                     .ToList();
 
                 return Results.Ok(filtered);

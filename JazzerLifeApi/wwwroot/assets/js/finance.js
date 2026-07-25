@@ -33,11 +33,11 @@ class FinanceApp {
         };
         this.gridDefsMap = {
             "transaction-income-details": [
-                { field: "YearMonth", headerName: "年月", width: 120, sort: "desc", filter: "agSetColumnFilter" },
+                { field: "YearMonth", headerName: "年月", width: 120, sort: "desc", filter: "agSetColumnFilter", mobileHide: true },
                 { field: "TransactionDate", headerName: "日期", width: 120, sort: "desc" },
                 { field: "Category", headerName: "類別", width: 130 },
-                { field: "OrganizationName", headerName: "銀行", width: 100 },
-                { field: "AccountName", headerName: "帳戶", width: 100 },
+                { field: "OrganizationName", headerName: "銀行", width: 100, mobileHide: true },
+                { field: "AccountName", headerName: "帳戶", width: 100, mobileHide: true },
                 { field: "Description", headerName: "描述", width: 200, flex: 1 },
                 {
                     field: "Amount",
@@ -46,8 +46,8 @@ class FinanceApp {
                     valueFormatter: (params) => this.formatCurrency(params.value),
                     cellStyle: (params) => this.getCellStyle(params.value),
                 },
-                { field: "Tag", headerName: "標註", width: 150 },
-                { field: "Notes", headerName: "筆記", width: 150 },
+                { field: "Tag", headerName: "標註", width: 150, mobileHide: true },
+                { field: "Notes", headerName: "筆記", width: 150, mobileHide: true },
                 {
                     field: "_exclude",
                     headerName: "操作",
@@ -61,11 +61,11 @@ class FinanceApp {
                 },
             ],
             "transaction-expense-details": [
-                { field: "YearMonth", headerName: "年月", width: 120, sort: "desc", filter: "agSetColumnFilter" },
+                { field: "YearMonth", headerName: "年月", width: 120, sort: "desc", filter: "agSetColumnFilter", mobileHide: true },
                 { field: "TransactionDate", headerName: "日期", width: 120, sort: "desc" },
                 { field: "Category", headerName: "類別", width: 130 },
-                { field: "OrganizationName", headerName: "銀行", width: 100 },
-                { field: "AccountName", headerName: "帳戶", width: 100 },
+                { field: "OrganizationName", headerName: "銀行", width: 100, mobileHide: true },
+                { field: "AccountName", headerName: "帳戶", width: 100, mobileHide: true },
                 { field: "Description", headerName: "描述", width: 200, flex: 1 },
                 {
                     field: "Amount",
@@ -74,8 +74,8 @@ class FinanceApp {
                     valueFormatter: (params) => this.formatCurrency(params.value),
                     cellStyle: (params) => this.getCellStyle(params.value),
                 },
-                { field: "Tag", headerName: "標註", width: 150 },
-                { field: "Notes", headerName: "筆記", width: 150 },
+                { field: "Tag", headerName: "標註", width: 150, mobileHide: true },
+                { field: "Notes", headerName: "筆記", width: 150, mobileHide: true },
                 {
                     field: "_exclude",
                     headerName: "操作",
@@ -89,11 +89,11 @@ class FinanceApp {
                 },
             ],
             "transaction-details": [
-                { field: "YearMonth", headerName: "年月", width: 120, sort: "desc", filter: "agSetColumnFilter" },
+                { field: "YearMonth", headerName: "年月", width: 120, sort: "desc", filter: "agSetColumnFilter", mobileHide: true },
                 { field: "TransactionDate", headerName: "日期", width: 120, sort: "desc" },
                 { field: "Category", headerName: "類別", width: 130 },
-                { field: "OrganizationName", headerName: "銀行", width: 100 },
-                { field: "AccountName", headerName: "帳戶", width: 100 },
+                { field: "OrganizationName", headerName: "銀行", width: 100, mobileHide: true },
+                { field: "AccountName", headerName: "帳戶", width: 100, mobileHide: true },
                 { field: "Description", headerName: "描述", width: 200, flex: 1 },
                 {
                     field: "Amount",
@@ -102,8 +102,8 @@ class FinanceApp {
                     valueFormatter: (params) => this.formatCurrency(params.value),
                     cellStyle: (params) => this.getCellStyle(params.value),
                 },
-                { field: "Tag", headerName: "標註", width: 150 },
-                { field: "Notes", headerName: "筆記", width: 150 },
+                { field: "Tag", headerName: "標註", width: 150, mobileHide: true },
+                { field: "Notes", headerName: "筆記", width: 150, mobileHide: true },
                 {
                     field: "_exclude",
                     headerName: "操作",
@@ -127,7 +127,7 @@ class FinanceApp {
                     flex: 1.5,
                     minWidth: 140,
                     valueFormatter: (params) => {
-                        return "$" + Number(params.value || 0).toLocaleString();
+                        return "$" + Math.round(Number(params.value || 0)).toLocaleString();
                     },
                     cellStyle: (params) => this.getCellStyle(params.value),
                     sort: "desc",
@@ -188,14 +188,14 @@ class FinanceApp {
                     headerName: "預算",
                     flex: 1.2,
                     minWidth: 130,
-                    valueFormatter: (params) => "NT$" + Number(params.value || 0).toLocaleString(),
+                    valueFormatter: (params) => "NT$" + Math.round(Number(params.value || 0)).toLocaleString(),
                 },
                 {
                     field: "Net",
                     headerName: "淨收支",
                     flex: 1.2,
                     minWidth: 130,
-                    valueFormatter: (params) => "NT$" + Number(params.value || 0).toLocaleString(),
+                    valueFormatter: (params) => "NT$" + Math.round(Number(params.value || 0)).toLocaleString(),
                     cellStyle: (params) => this.getCellStyle(params.value),
                 },
                 {
@@ -252,7 +252,7 @@ class FinanceApp {
                     field: "BillAmount",
                     headerName: "金額",
                     width: 200,
-                    valueFormatter: (params) => "NT$" + params.value.toLocaleString(),
+                    valueFormatter: (params) => "NT$" + Math.round(Number(params.value || 0)).toLocaleString(),
                 },
                 { field: "Note", headerName: "備註", width: 200 },
             ],
@@ -344,9 +344,9 @@ class FinanceApp {
         this.data = { details: [], stocks: [], account: [], projects: [], bills: [], assets: [] };
 
         this.detailViewConfig = {
-            "transaction-details": { grid: "transactionDetailsGrid", keyword: "txKeyword_all", month: "txMonth_all", panel: "txDetailPanel_all", sign: "all", showExcludedBtn: "txShowExcluded_all" },
-            "transaction-income-details": { grid: "transactionDetailsGrid_income", keyword: "txKeyword_income", month: "txMonth_income", panel: "txDetailPanel_income", sign: "income", showExcludedBtn: "txShowExcluded_income" },
-            "transaction-expense-details": { grid: "transactionDetailsGrid_expense", keyword: "txKeyword_expense", month: "txMonth_expense", panel: "txDetailPanel_expense", sign: "expense", showExcludedBtn: "txShowExcluded_expense" },
+            "transaction-details": { grid: "transactionDetailsGrid", keyword: "txKeyword_all", month: "txMonth_all", panel: "txDetailPanel_all", sign: "all", showExcludedBtn: "txShowExcluded_all", chart: "transactionDetailsTrendChart" },
+            "transaction-income-details": { grid: "transactionDetailsGrid_income", keyword: "txKeyword_income", month: "txMonth_income", panel: "txDetailPanel_income", sign: "income", showExcludedBtn: "txShowExcluded_income", chart: "transactionIncomeDetailsTrendChart" },
+            "transaction-expense-details": { grid: "transactionDetailsGrid_expense", keyword: "txKeyword_expense", month: "txMonth_expense", panel: "txDetailPanel_expense", sign: "expense", showExcludedBtn: "txShowExcluded_expense", chart: "transactionExpenseDetailsTrendChart" },
         };
         this.txFilters = {
             "transaction-details": { keyword: "", month: "" },
@@ -359,7 +359,7 @@ class FinanceApp {
             "transaction-expense-details": false,
         };
 
-        this.categoryAnalysis = { mode: "expense", granularity: "month", start: "", end: "" };
+        this.categoryAnalysis = { mode: "expense", granularity: "month", start: "", end: "", selectedPeriod: null, lastData: null };
 
         this.featureViewsMap = {
             overview: [
@@ -450,12 +450,38 @@ class FinanceApp {
             this.elements.floatingMenuBtn.classList.toggle("active");
         });
 
+        // 手機版底部導覽列的「更多」：開關同一個側邊欄，用來放不常用的「上傳」「設定」等功能
+        const bottomNavMore = document.getElementById("appBottomNavMore");
+        if (bottomNavMore) {
+            bottomNavMore.addEventListener("click", () => {
+                this.toggleSidebar();
+                bottomNavMore.classList.toggle("active", this.elements.sidebar.classList.contains("active"));
+            });
+        }
+
         this.elements.navItems.forEach((item) => {
             item.addEventListener("click", (e) => {
                 e.preventDefault();
                 const feature = item.dataset.feature;
                 this.switchFeature(feature);
             });
+        });
+
+        // 手機/桌面斷點切換時（例如旋轉手機或縮放視窗跨過 767px），重繪目前的明細表格，
+        // 讓 mobileHide 欄位（銀行/帳戶/標註/筆記）能正確顯示或隱藏
+        let wasMobileViewport = window.innerWidth <= 767;
+        let resizeDebounce;
+        window.addEventListener("resize", () => {
+            clearTimeout(resizeDebounce);
+            resizeDebounce = setTimeout(() => {
+                const isMobileViewport = window.innerWidth <= 767;
+                if (isMobileViewport !== wasMobileViewport) {
+                    wasMobileViewport = isMobileViewport;
+                    if (this.detailViewConfig[this.state.currentView]) {
+                        this.renderDetailGrid(this.state.currentView);
+                    }
+                }
+            }, 200);
         });
 
         this.elements.modalClose.addEventListener("click", () => this.closeModal());
@@ -482,15 +508,6 @@ class FinanceApp {
             }
         });
 
-        const btnAddProject = document.getElementById("btnAddProject");
-        if (btnAddProject) {
-            btnAddProject.addEventListener("click", () => {
-                this.showModal("新增專案", this.getProjectForm(), () => {
-                    this.closeModal();
-                });
-            });
-        }
-
         $("#btnBackToProjectList").on("click", () => {
             if (!this.canLeaveProjectDetail("目前專案詳情有未儲存變更，確定要返回嗎？")) {
                 return;
@@ -513,6 +530,7 @@ class FinanceApp {
             $("#" + cfg.month).on("change", (e) => {
                 this.txFilters[viewId].month = e.target.value;
                 this.renderDetailGrid(viewId);
+                this.highlightDetailTrendChartPeriod(viewId, e.target.value);
             });
             if (cfg.showExcludedBtn) {
                 $("#" + cfg.showExcludedBtn).on("click", () => {
@@ -523,31 +541,41 @@ class FinanceApp {
 
         $("#caModeExpense").on("click", () => {
             this.categoryAnalysis.mode = "expense";
+            this.categoryAnalysis.selectedPeriod = null;
             this.renderCategoryAnalysis();
         });
         $("#caModeIncome").on("click", () => {
             this.categoryAnalysis.mode = "income";
+            this.categoryAnalysis.selectedPeriod = null;
             this.renderCategoryAnalysis();
         });
         $("#caGranMonth").on("click", () => {
             this.categoryAnalysis.granularity = "month";
             this.categoryAnalysis.start = "";
             this.categoryAnalysis.end = "";
+            this.categoryAnalysis.selectedPeriod = null;
             this.renderCategoryAnalysis();
         });
         $("#caGranYear").on("click", () => {
             this.categoryAnalysis.granularity = "year";
             this.categoryAnalysis.start = "";
             this.categoryAnalysis.end = "";
+            this.categoryAnalysis.selectedPeriod = null;
             this.renderCategoryAnalysis();
         });
         $("#caStart").on("change", (e) => {
             this.categoryAnalysis.start = e.target.value;
+            this.categoryAnalysis.selectedPeriod = null;
             this.renderCategoryAnalysis();
         });
         $("#caEnd").on("change", (e) => {
             this.categoryAnalysis.end = e.target.value;
+            this.categoryAnalysis.selectedPeriod = null;
             this.renderCategoryAnalysis();
+        });
+        $("#caClearSelection").on("click", () => {
+            this.categoryAnalysis.selectedPeriod = null;
+            this.applyCategoryAnalysisSelection();
         });
 
         $("#btnSaveProjectDetail").on("click", () => this.saveProjectDetail());
@@ -620,6 +648,7 @@ class FinanceApp {
         if (window.innerWidth < 1200) {
             this.elements.sidebar.classList.remove("active");
             this.elements.floatingMenuBtn.classList.remove("active");
+            document.getElementById("appBottomNavMore")?.classList.remove("active");
         }
     }
 
@@ -769,6 +798,7 @@ class FinanceApp {
                 selfObj.load_data("detail").then(function () {
                     selfObj.populateDetailMonths(viewId);
                     selfObj.renderDetailGrid(viewId);
+                    selfObj.renderDetailTrendChart(viewId);
                 });
                 break;
             case "transaction-category-analysis":
@@ -999,33 +1029,33 @@ class FinanceApp {
             case "bills-expense-monthly": {
                 const months = ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"];
                 categories = months;
-                seriesData = data;
+                seriesData = (data || []).map((v) => Math.round(Number(v) || 0));
                 series.push({ name: "月支出", data: seriesData, color: "#00bcd4", marker: { symbol: "circle" } });
                 break;
             }
             case "asset-trend":
                 categories = [...new Set(data.map((x) => x["YearMonth"]))];
-                seriesData = data.filter((x) => x.Type == "NetAssets").map((x) => x["total"]);
+                seriesData = data.filter((x) => x.Type == "NetAssets").map((x) => Math.round(Number(x["total"]) || 0));
                 series.push({ name: "淨資產", data: seriesData, color: "#00bcd4", marker: { symbol: "circle" } });
-                seriesData = data.filter((x) => x.Type == "Debt").map((x) => x["total"]);
+                seriesData = data.filter((x) => x.Type == "Debt").map((x) => Math.round(Number(x["total"]) || 0));
                 series.push({ name: "總債務", data: seriesData, color: "#ff5722", marker: { symbol: "circle" } });
-                seriesData = data.filter((x) => x.Type == "Assets").map((x) => x["total"]);
+                seriesData = data.filter((x) => x.Type == "Assets").map((x) => Math.round(Number(x["total"]) || 0));
                 series.push({ name: "總資產", data: seriesData, color: "#4caf50", marker: { symbol: "circle" } });
                 break;
             case "cash-flow":
                 categories = [...new Set(data.map((x) => x["YearMonth"]))];
-                seriesData = data.filter((x) => x.Type == "Net").map((x) => x["total"]);
+                seriesData = data.filter((x) => x.Type == "Net").map((x) => Math.round(Number(x["total"]) || 0));
                 series.push({ name: "收支結餘", data: seriesData, color: "#00bcd4", marker: { symbol: "circle" } });
-                seriesData = data.filter((x) => x.Type == "Expense").map((x) => x["total"]);
+                seriesData = data.filter((x) => x.Type == "Expense").map((x) => Math.round(Number(x["total"]) || 0));
                 series.push({ name: "總支出", data: seriesData, color: "#ff5722", marker: { symbol: "circle" } });
-                seriesData = data.filter((x) => x.Type == "Income").map((x) => x["total"]);
+                seriesData = data.filter((x) => x.Type == "Income").map((x) => Math.round(Number(x["total"]) || 0));
                 series.push({ name: "總收入", data: seriesData, color: "#4caf50", marker: { symbol: "circle" } });
                 break;
             case "project-management":
                 categories = data.map((x) => x["BillProjectId"]);
-                series.push({ name: "收入", data: data.map((x) => Math.abs(Number(x["Income"] || 0))), color: "#4caf50" });
-                series.push({ name: "支出", data: data.map((x) => Math.abs(Number(x["Expense"] || 0))), color: "#ff5722" });
-                series.push({ name: "淨收入", data: data.map((x) => Number(x["Net"] || 0)), color: "#00bcd4" });
+                series.push({ name: "收入", data: data.map((x) => Math.round(Math.abs(Number(x["Income"] || 0)))), color: "#4caf50" });
+                series.push({ name: "支出", data: data.map((x) => Math.round(Math.abs(Number(x["Expense"] || 0)))), color: "#ff5722" });
+                series.push({ name: "淨收入", data: data.map((x) => Math.round(Number(x["Net"] || 0))), color: "#00bcd4" });
                 break;
             default:
                 break;
@@ -1046,27 +1076,49 @@ class FinanceApp {
             "project-management": "column",
             "bills-expense-monthly": "column",
         };
+        var self = this;
         var { categories, series } = this._getChartParams_byViewId(viewId, data);
+        var mobileTweaks = this.getMobileChartTweaks(categories.length);
 
         this.state.charts[chartId] = Highcharts.chart(chartId, {
-            chart: { type: type[viewId] || "line", backgroundColor: "transparent", style: { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' } },
+            chart: {
+                type: type[viewId] || "line",
+                backgroundColor: "transparent",
+                style: { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' },
+                ...mobileTweaks.chart,
+            },
             title: { text: title[viewId] || null },
             credits: { enabled: false },
-            xAxis: { categories: categories, gridLineColor: "#424242", lineColor: "#757575", tickColor: "#757575", labels: { style: { color: "#b0b0b0" } } },
-            yAxis: {
-                title: { text: "金額 (NT$)", style: { color: "#b0b0b0" } },
+            xAxis: {
+                categories: categories,
                 gridLineColor: "#424242",
-                labels: { style: { color: "#b0b0b0" }, formatter: function () { return "NT$ " + this.value / 1000 + "K"; } },
+                lineColor: "#757575",
+                tickColor: "#757575",
+                labels: { style: { color: "#b0b0b0" }, ...mobileTweaks.xAxisLabels },
+            },
+            yAxis: {
+                title: { text: "金額 (NT$)", style: { color: "#b0b0b0" }, ...mobileTweaks.yAxisTitle },
+                gridLineColor: "#424242",
+                labels: { style: { color: "#b0b0b0" }, formatter: function () { return self.formatAxisCurrency(this.value); } },
             },
             tooltip: {
                 backgroundColor: "#2a2a2a",
                 borderColor: "#757575",
                 style: { color: "#ffffff" },
                 shared: true,
+                // 觸控裝置預設 followTouchMove:true 會把手指移動當成「拖曳看提示框」，
+                // 跟 scrollablePlotArea 的橫向滑動搶手勢，導致點擊事件跟提示框都不穩定觸發；
+                // 關掉後改成「點一下＝顯示提示框並觸發點擊」，滑動交給圖表捲動處理
+                followTouchMove: false,
+                // scrollablePlotArea 會把提示框限制在圖表自己的（會被捲動裁切的）SVG範圍內，
+                // 導致提示框位置算到看不見的地方或直接被裁掉；outside:true 讓提示框改成掛在整個網頁上，不受圖表捲動範圍限制
+                outside: true,
                 formatter: function () {
-                    let s = "<b>" + categories[this.x] + "</b>";
+                    // 分類座標軸的 tooltip formatter 裡 this.x 本身就已經是解析好的類別文字（跟其他圖表一致），
+                    // 不需要（也不能）再拿去查 categories 陣列，之前 categories[this.x] 會查到 undefined
+                    let s = "<b>" + this.x + "</b>";
                     this.points.forEach((point) => {
-                        s += '<br/><span style="color:' + point.color + '">●</span> ' + point.series.name + ": NT$ " + point.y.toLocaleString();
+                        s += '<br/><span style="color:' + point.color + '">●</span> ' + point.series.name + ": " + self.formatAxisCurrency(point.y);
                     });
                     return s;
                 },
@@ -1079,7 +1131,10 @@ class FinanceApp {
 
     initGrids_by_viewId(data, viewId, eleId) {
         const rowData = data;
-        const columnDefs = this.gridDefsMap[viewId];
+        const isMobile = window.innerWidth <= 767;
+        // 手機上把 mobileHide 標記的欄位（銀行/帳戶/標註/筆記等次要資訊）先隱藏，減少橫向捲動的資料量；
+        // 這些欄位點列還是看得到，因為點一列會在下方交易明細卡片顯示完整資料
+        const columnDefs = (this.gridDefsMap[viewId] || []).map((col) => (col.mobileHide ? { ...col, hide: isMobile } : col));
         const self = this;
 
         const gridOptions = {
@@ -1186,9 +1241,9 @@ class FinanceApp {
                 var momClass = momDiff >= 0 ? "positive" : "negative";
 
                 self.elements.statMoM.innerHTML = `
-            <span>資產差 ${momDiff_income >= 0 ? "+" : ""}NT$ ${momDiff_income.toLocaleString()}</span>
-            <span>負債差 ${momDiff_expense >= 0 ? "+" : ""}NT$ ${momDiff_expense.toLocaleString()}</span>
-            <span class="stat-amount">淨資產差 ${momDiff >= 0 ? "+" : ""}NT$ ${momDiff.toLocaleString()}</span>
+            <span>資產差 ${momDiff_income >= 0 ? "+" : ""}${self.formatAxisCurrency(momDiff_income)}</span>
+            <span>負債差 ${momDiff_expense >= 0 ? "+" : ""}${self.formatAxisCurrency(momDiff_expense)}</span>
+            <span class="stat-amount">淨資產差 ${momDiff >= 0 ? "+" : ""}${self.formatAxisCurrency(momDiff)}</span>
             <span class="stat-percentage ${momClass}">${momDiff >= 0 ? "+" : ""}${momPercentage}%</span>
             <p class="stat-description">相較上月 (${lastMonth["Time"]})</p>
         `;
@@ -1200,9 +1255,9 @@ class FinanceApp {
                 var yoyClass = yoyDiff >= 0 ? "positive" : "negative";
 
                 self.elements.statYoY.innerHTML = `
-            <span>資產差 ${yoyDiff_income >= 0 ? "+" : ""}NT$ ${yoyDiff_income.toLocaleString()}</span>
-            <span>負債差 ${yoyDiff_expense >= 0 ? "+" : ""}NT$ ${yoyDiff_expense.toLocaleString()}</span>
-            <span class="stat-amount">淨資產差 ${yoyDiff >= 0 ? "+" : ""}NT$ ${yoyDiff.toLocaleString()}</span>
+            <span>資產差 ${yoyDiff_income >= 0 ? "+" : ""}${self.formatAxisCurrency(yoyDiff_income)}</span>
+            <span>負債差 ${yoyDiff_expense >= 0 ? "+" : ""}${self.formatAxisCurrency(yoyDiff_expense)}</span>
+            <span class="stat-amount">淨資產差 ${yoyDiff >= 0 ? "+" : ""}${self.formatAxisCurrency(yoyDiff)}</span>
             <span class="stat-percentage ${yoyClass}">${yoyDiff >= 0 ? "+" : ""}${yoyPercentage}%</span>
             <p class="stat-description">相較去年同期 (${lastYearSameMonth["Time"]})</p>
         `;
@@ -1212,9 +1267,9 @@ class FinanceApp {
                 var balanceText = balance >= 0 ? "資產 > 負債" : "負債 > 資產";
 
                 self.elements.statBalance.innerHTML = `
-            <span>資產 ${currentMonth.Assets >= 0 ? "+" : ""}NT$ ${currentMonth.Assets.toLocaleString()}</span>
-            <span>負債 ${currentMonth.Debt >= 0 ? "-" : ""}NT$ ${currentMonth.Debt.toLocaleString()}</span>
-            <span class="stat-amount">結餘 ${balance >= 0 ? "+" : ""}NT$ ${balance.toLocaleString()}</span>
+            <span>資產 ${currentMonth.Assets >= 0 ? "+" : ""}${self.formatAxisCurrency(currentMonth.Assets)}</span>
+            <span>負債 ${currentMonth.Debt >= 0 ? "-" : ""}${self.formatAxisCurrency(currentMonth.Debt)}</span>
+            <span class="stat-amount">結餘 ${balance >= 0 ? "+" : ""}${self.formatAxisCurrency(balance)}</span>
             <span class="stat-percentage ${balanceClass}">${balanceText}</span>
         `;
                 break;
@@ -1230,9 +1285,9 @@ class FinanceApp {
                 var momClass = momDiff >= 0 ? "positive" : "negative";
 
                 $("#cash_statMoM").html(`
-            <span>收入差 ${momDiff_income >= 0 ? "+" : ""}NT$ ${momDiff_income.toLocaleString()}</span>
-            <span>支出差 ${momDiff_expense >= 0 ? "+" : ""}NT$ ${momDiff_expense.toLocaleString()}</span>
-            <span class="stat-amount">淨收支 ${momDiff >= 0 ? "+" : ""}NT$ ${momDiff.toLocaleString()}</span>
+            <span>收入差 ${momDiff_income >= 0 ? "+" : ""}${self.formatAxisCurrency(momDiff_income)}</span>
+            <span>支出差 ${momDiff_expense >= 0 ? "+" : ""}${self.formatAxisCurrency(momDiff_expense)}</span>
+            <span class="stat-amount">淨收支 ${momDiff >= 0 ? "+" : ""}${self.formatAxisCurrency(momDiff)}</span>
             <span class="stat-percentage ${momClass}">${momDiff >= 0 ? "+" : ""}${momPercentage}%</span>
             <p class="stat-description">相較上月 (${lastMonth["Time"]})</p>
         `);
@@ -1244,9 +1299,9 @@ class FinanceApp {
                 var yoyClass = yoyDiff >= 0 ? "positive" : "negative";
 
                 $("#cash_statYoY").html(`
-            <span>收入差 ${yoyDiff_income >= 0 ? "+" : ""}NT$ ${yoyDiff_income.toLocaleString()}</span>
-            <span>支出差 ${yoyDiff_expense >= 0 ? "+" : ""}NT$ ${yoyDiff_expense.toLocaleString()}</span>
-            <span class="stat-amount">淨收支差 ${yoyDiff >= 0 ? "+" : ""}NT$ ${yoyDiff.toLocaleString()}</span>
+            <span>收入差 ${yoyDiff_income >= 0 ? "+" : ""}${self.formatAxisCurrency(yoyDiff_income)}</span>
+            <span>支出差 ${yoyDiff_expense >= 0 ? "+" : ""}${self.formatAxisCurrency(yoyDiff_expense)}</span>
+            <span class="stat-amount">淨收支差 ${yoyDiff >= 0 ? "+" : ""}${self.formatAxisCurrency(yoyDiff)}</span>
             <span class="stat-percentage ${yoyClass}">${yoyDiff >= 0 ? "+" : ""}${yoyPercentage}%</span>
             <p class="stat-description">相較去年同期 (${lastYearSameMonth["Time"]})</p>
         `);
@@ -1256,9 +1311,9 @@ class FinanceApp {
                 var balanceText = balance >= 0 ? "收入 > 支出" : "支出 > 收入";
 
                 $("#cash_statBalance").html(`
-            <span>收入 ${currentMonth.Income >= 0 ? "+" : ""}NT$ ${currentMonth.Income.toLocaleString()}</span>
-            <span>支出 ${currentMonth.Expense >= 0 ? "-" : ""}NT$ ${currentMonth.Expense.toLocaleString()}</span>
-            <span class="stat-amount">結餘 ${balance >= 0 ? "+" : ""}NT$ ${balance.toLocaleString()}</span>
+            <span>收入 ${currentMonth.Income >= 0 ? "+" : ""}${self.formatAxisCurrency(currentMonth.Income)}</span>
+            <span>支出 ${currentMonth.Expense >= 0 ? "-" : ""}${self.formatAxisCurrency(currentMonth.Expense)}</span>
+            <span class="stat-amount">結餘 ${balance >= 0 ? "+" : ""}${self.formatAxisCurrency(balance)}</span>
             <span class="stat-percentage ${balanceClass}">${balanceText}</span>`);
                 break;
             }
@@ -1267,8 +1322,24 @@ class FinanceApp {
 
     formatCurrency(value) {
         if (value === null || value === undefined) return "";
-        const prefix = value >= 0 ? "+" : "";
-        return prefix + "NT$ " + value.toLocaleString();
+        const rounded = Math.round(Number(value) || 0);
+        const prefix = rounded >= 0 ? "+" : "";
+        return prefix + "NT$ " + rounded.toLocaleString();
+    }
+
+    // 圖表座標軸用的精簡單位：四捨五入到整數 K，破百萬才切到 M（最多留 1 位小數），
+    // 避免出現像 "12.345K" 這種又長又有小數點的軸標籤
+    formatAxisCurrency(value) {
+        const num = Math.round(Number(value) || 0);
+        const abs = Math.abs(num);
+        if (abs >= 1000000) {
+            const m = num / 1000000;
+            return "NT$ " + (Number.isInteger(m) ? m : m.toFixed(1)) + "M";
+        }
+        if (abs >= 1000) {
+            return "NT$ " + Math.round(num / 1000) + "K";
+        }
+        return "NT$ " + num;
     }
 
     getCellStyle(value) {
@@ -2346,6 +2417,171 @@ class FinanceApp {
         });
     }
 
+    // 點擊明細頁面上方走勢圖的某個月份：把該月同步到「版本月份」下拉選單，並套用到下方表格篩選
+    // 再點一次同一個月份 = 取消篩選，回到「全部月份」
+    onDetailTrendChartPeriodClick(viewId, period) {
+        const cfg = this.detailViewConfig[viewId];
+        if (!cfg) return;
+        const current = this.txFilters[viewId].month;
+        const next = current === period ? "" : period;
+
+        this.txFilters[viewId].month = next;
+        const select = document.getElementById(cfg.month);
+        if (select) select.value = next;
+
+        this.renderDetailGrid(viewId);
+        this.highlightDetailTrendChartPeriod(viewId, next);
+    }
+
+    // 用透明度標示走勢圖目前選取（＝表格正在篩選）的月份
+    highlightDetailTrendChartPeriod(viewId, selectedPeriod) {
+        const cfg = this.detailViewConfig[viewId];
+        const chart = cfg && this.state.charts[cfg.chart];
+        if (!chart) return;
+        chart.series.forEach((series) => {
+            series.points.forEach((point) => {
+                const el = point.graphic;
+                if (el) {
+                    el.attr({ opacity: !selectedPeriod || point.category === selectedPeriod ? 1 : 0.35 });
+                }
+            });
+        });
+    }
+
+    // 手機上月份一多，直接把柱子/折線擠進窄螢幕會完全看不清楚。
+    // 改用 Highcharts 的 scrollablePlotArea：圖表畫成「每個月份都有足夠寬度」的完整寬度，
+    // 超出螢幕的部分左右滑動查看（跟表格的橫向拖曳是同一種操作邏輯），Y 軸維持固定不跟著捲動。
+    getMobileChartTweaks(categoryCount, pxPerCategory = 42, minWidth = 320) {
+        if (window.innerWidth > 767) {
+            return { chart: {}, xAxisLabels: {}, yAxisTitle: undefined };
+        }
+        return {
+            chart: {
+                scrollablePlotArea: {
+                    minWidth: Math.max(categoryCount * pxPerCategory, minWidth),
+                    scrollPositionX: 1, // 預設捲到最右邊（最新月份）
+                },
+            },
+            xAxisLabels: { rotation: -45 },
+            // 手機版空間有限，Y 軸的「金額 (NT$)」直向標題會跟刻度數字擠在一起、還會被 Y 軸固定+橫向捲動的版面蓋住，直接拿掉
+            // （刻度數字本身已經有 "NT$" 開頭，不會看不懂單位）
+            yAxisTitle: { text: null },
+        };
+    }
+
+    // 明細頁面上方的「各月收支走勢」圖表，用已載入的 this.data.details（未排除項目、不受頁面上關鍵字/月份篩選影響）計算
+    renderDetailTrendChart(viewId) {
+        const self = this;
+        const cfg = this.detailViewConfig[viewId];
+        if (!cfg || !cfg.chart) return;
+        const container = document.getElementById(cfg.chart);
+        if (!container) return;
+
+        const allRows = this.data.details || [];
+        const byMonth = {};
+        allRows.forEach((row) => {
+            const ym = String(row.YearMonth || "").trim();
+            if (!ym) return;
+            const amount = Number(row.Amount || 0);
+            if (!byMonth[ym]) byMonth[ym] = { income: 0, expense: 0 };
+            if (amount >= 0) byMonth[ym].income += amount;
+            else byMonth[ym].expense += -amount;
+        });
+        const months = Object.keys(byMonth).sort();
+
+        $(container).empty();
+        if (months.length === 0) {
+            return;
+        }
+
+        let series;
+        let title;
+        if (cfg.sign === "income") {
+            series = [{ name: "收入", data: months.map((m) => Math.round(byMonth[m].income)), color: "#4caf50" }];
+            title = "每月收入走勢";
+        } else if (cfg.sign === "expense") {
+            series = [{ name: "支出", data: months.map((m) => Math.round(byMonth[m].expense)), color: "#ff5722" }];
+            title = "每月支出走勢";
+        } else {
+            series = [
+                { name: "收入", data: months.map((m) => Math.round(byMonth[m].income)), color: "#4caf50" },
+                { name: "支出", data: months.map((m) => Math.round(byMonth[m].expense)), color: "#ff5722" },
+                { name: "結餘", data: months.map((m) => Math.round(byMonth[m].income - byMonth[m].expense)), color: "#00bcd4", type: "line" },
+            ];
+            title = "每月收支走勢";
+        }
+
+        const mobileTweaks = this.getMobileChartTweaks(months.length);
+
+        this.state.charts[cfg.chart] = Highcharts.chart(cfg.chart, {
+            chart: {
+                type: "column",
+                backgroundColor: "transparent",
+                style: { fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" },
+                ...mobileTweaks.chart,
+            },
+            title: { text: title, style: { color: "#ffffff" } },
+            credits: { enabled: false },
+            xAxis: {
+                categories: months,
+                gridLineColor: "#424242",
+                lineColor: "#757575",
+                tickColor: "#757575",
+                labels: { style: { color: "#b0b0b0" }, ...mobileTweaks.xAxisLabels },
+            },
+            yAxis: {
+                title: { text: "金額 (NT$)", style: { color: "#b0b0b0" }, ...mobileTweaks.yAxisTitle },
+                gridLineColor: "#424242",
+                labels: { style: { color: "#b0b0b0" }, formatter: function () { return self.formatAxisCurrency(this.value); } },
+            },
+            legend: { itemStyle: { color: "#b0b0b0" }, itemHoverStyle: { color: "#ffffff" } },
+            tooltip: {
+                backgroundColor: "#2a2a2a",
+                borderColor: "#757575",
+                style: { color: "#ffffff" },
+                shared: true,
+                // 觸控裝置預設 followTouchMove:true 會把手指移動當成「拖曳看提示框」，
+                // 跟 scrollablePlotArea 的橫向滑動搶手勢，導致點擊事件跟提示框都不穩定觸發；
+                // 關掉後改成「點一下＝顯示提示框並觸發點擊」，滑動交給圖表捲動處理
+                followTouchMove: false,
+                // scrollablePlotArea 會把提示框限制在圖表自己的（會被捲動裁切的）SVG範圍內，
+                // 導致提示框位置算到看不見的地方或直接被裁掉；outside:true 讓提示框改成掛在整個網頁上，不受圖表捲動範圍限制
+                outside: true,
+                formatter: function () {
+                    let s = "<b>" + this.x + "</b>";
+                    this.points.forEach((point) => {
+                        s += '<br/><span style="color:' + point.color + '">●</span> ' + point.series.name + ": " + self.formatAxisCurrency(point.y);
+                    });
+                    return s;
+                },
+            },
+            plotOptions: {
+                column: {
+                    borderWidth: 0,
+                    cursor: "pointer",
+                    point: {
+                        events: {
+                            click: function () {
+                                var point = this;
+                                self.onDetailTrendChartPeriodClick(viewId, point.category);
+                                // 觸控裝置上 Highcharts 內建的「點一下顯示提示框」偵測跟 scrollablePlotArea 的橫向捲動衝突，
+                                // 常常導致提示框根本不出現；既然點擊事件本身已經確定會穩定觸發，改成點擊時手動叫出提示框，
+                                // 不再依賴 Highcharts 自己判斷要不要顯示
+                                var chart = point.series.chart;
+                                var sharedPoints = chart.series.map((s) => s.points[point.index]).filter(Boolean);
+                                chart.tooltip.refresh(sharedPoints.length ? sharedPoints : point);
+                            },
+                        },
+                    },
+                },
+            },
+            series: series,
+        });
+
+        // 若切換頁面前已經有月份篩選在生效，圖表畫好後要立刻反映選取狀態
+        this.highlightDetailTrendChartPeriod(viewId, this.txFilters[viewId].month);
+    }
+
     handleGridRowClicked(viewId, data) {
         const cfg = this.detailViewConfig[viewId];
         if (!cfg || !data) {
@@ -2421,28 +2657,93 @@ class FinanceApp {
             document.getElementById("caGranMonth")?.classList.toggle("active", self.categoryAnalysis.granularity === "month");
             document.getElementById("caGranYear")?.classList.toggle("active", self.categoryAnalysis.granularity === "year");
 
+            self.categoryAnalysis.lastData = { periods, categories, sums };
+            if (self.categoryAnalysis.selectedPeriod && !periods.includes(self.categoryAnalysis.selectedPeriod)) {
+                self.categoryAnalysis.selectedPeriod = null;
+            }
+
             self.renderCategoryAnalysisChart(periods, categories, sums);
-            self.renderCategoryPivotGrid(periods, categories, sums);
+            self.applyCategoryAnalysisSelection();
+        });
+    }
+
+    // 依目前選取的月份/年份，重繪明細表格與選取狀態列（不重新打 API，直接用上次抓回的資料）
+    applyCategoryAnalysisSelection() {
+        if (!this.categoryAnalysis.lastData) return;
+        const { periods, categories, sums } = this.categoryAnalysis.lastData;
+        const selected = this.categoryAnalysis.selectedPeriod;
+
+        const bar = document.getElementById("caSelectionBar");
+        const label = document.getElementById("caSelectionLabel");
+        if (bar && label) {
+            if (selected) {
+                bar.classList.remove("hidden");
+                label.textContent = `已選取：${selected}（依 ${this.categoryAnalysis.mode === "income" ? "收入" : "支出"}佔比排序）`;
+            } else {
+                bar.classList.add("hidden");
+                label.textContent = "";
+            }
+        }
+
+        this.highlightCategoryAnalysisChartPeriod(selected);
+
+        if (selected) {
+            this.renderCategoryPivotGridForPeriod(selected, categories, sums);
+        } else {
+            this.renderCategoryPivotGrid(periods, categories, sums);
+        }
+    }
+
+    // 點擊圖表某個月/年時觸發，切換選取狀態（再點一次同一個月份會取消選取）
+    onCategoryAnalysisPeriodClick(period) {
+        this.categoryAnalysis.selectedPeriod = this.categoryAnalysis.selectedPeriod === period ? null : period;
+        this.applyCategoryAnalysisSelection();
+    }
+
+    // 用透明度標示目前選取的月份，讓圖表與下方表格的連動更明顯
+    highlightCategoryAnalysisChartPeriod(selectedPeriod) {
+        const chart = this.state.charts["categoryAnalysisChart"];
+        if (!chart) return;
+        chart.series.forEach((series) => {
+            series.points.forEach((point) => {
+                const el = point.graphic;
+                if (el) {
+                    el.attr({ opacity: !selectedPeriod || point.category === selectedPeriod ? 1 : 0.35 });
+                }
+            });
         });
     }
 
     renderCategoryAnalysisChart(periods, categories, sums) {
+        const self = this;
         const palette = ["#00bcd4", "#4caf50", "#ff5722", "#9c27b0", "#ff9800", "#3f51b5", "#e91e63", "#009688", "#cddc39", "#795548", "#607d8b", "#f44336"];
         const series = categories.map((cat, i) => ({
             name: cat,
             data: periods.map((p) => Math.round(sums[cat][p] || 0)),
             color: palette[i % palette.length],
         }));
-        const title = (this.categoryAnalysis.mode === "income" ? "收入" : "支出") + "分類分析";
+        const title = (this.categoryAnalysis.mode === "income" ? "收入" : "支出") + "分類分析（點一下柱狀圖可依該月份篩選下方明細）";
+        const mobileTweaks = this.getMobileChartTweaks(periods.length);
         this.state.charts["categoryAnalysisChart"] = Highcharts.chart("categoryAnalysisChart", {
-            chart: { type: "column", backgroundColor: "transparent", style: { fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" } },
+            chart: {
+                type: "column",
+                backgroundColor: "transparent",
+                style: { fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" },
+                ...mobileTweaks.chart,
+            },
             title: { text: title, style: { color: "#ffffff" } },
             credits: { enabled: false },
-            xAxis: { categories: periods, gridLineColor: "#424242", lineColor: "#757575", tickColor: "#757575", labels: { style: { color: "#b0b0b0" } } },
-            yAxis: {
-                title: { text: "金額 (NT$)", style: { color: "#b0b0b0" } },
+            xAxis: {
+                categories: periods,
                 gridLineColor: "#424242",
-                labels: { style: { color: "#b0b0b0" }, formatter: function () { return "NT$ " + this.value / 1000 + "K"; } },
+                lineColor: "#757575",
+                tickColor: "#757575",
+                labels: { style: { color: "#b0b0b0" }, ...mobileTweaks.xAxisLabels },
+            },
+            yAxis: {
+                title: { text: "金額 (NT$)", style: { color: "#b0b0b0" }, ...mobileTweaks.yAxisTitle },
+                gridLineColor: "#424242",
+                labels: { style: { color: "#b0b0b0" }, formatter: function () { return self.formatAxisCurrency(this.value); } },
             },
             legend: { itemStyle: { color: "#b0b0b0" }, itemHoverStyle: { color: "#ffffff" } },
             tooltip: {
@@ -2450,21 +2751,50 @@ class FinanceApp {
                 borderColor: "#757575",
                 style: { color: "#ffffff" },
                 shared: true,
+                // 觸控裝置預設 followTouchMove:true 會把手指移動當成「拖曳看提示框」，
+                // 跟 scrollablePlotArea 的橫向滑動搶手勢，導致點擊事件跟提示框都不穩定觸發；
+                // 關掉後改成「點一下＝顯示提示框並觸發點擊」，滑動交給圖表捲動處理
+                followTouchMove: false,
+                // scrollablePlotArea 會把提示框限制在圖表自己的（會被捲動裁切的）SVG範圍內，
+                // 導致提示框位置算到看不見的地方或直接被裁掉；outside:true 讓提示框改成掛在整個網頁上，不受圖表捲動範圍限制
+                outside: true,
                 formatter: function () {
                     let s = "<b>" + this.x + "</b>";
                     this.points.forEach((point) => {
                         if (point.y) {
-                            s += '<br/><span style="color:' + point.color + '">●</span> ' + point.series.name + ": NT$ " + point.y.toLocaleString();
+                            s += '<br/><span style="color:' + point.color + '">●</span> ' + point.series.name + ": " + self.formatAxisCurrency(point.y);
                         }
                     });
                     return s;
                 },
             },
-            plotOptions: { column: { stacking: "normal", borderWidth: 0 } },
+            plotOptions: {
+                column: {
+                    stacking: "normal",
+                    borderWidth: 0,
+                    cursor: "pointer",
+                    point: {
+                        events: {
+                            click: function () {
+                                var point = this;
+                                self.onCategoryAnalysisPeriodClick(point.category);
+                                // 同步明細走勢圖的做法：觸控裝置上 Highcharts 內建的提示框偵測跟 scrollablePlotArea 衝突，
+                                // 改成點擊時手動叫出提示框
+                                var chart = point.series.chart;
+                                var sharedPoints = chart.series.map((s) => s.points[point.index]).filter(Boolean);
+                                chart.tooltip.refresh(sharedPoints.length ? sharedPoints : point);
+                            },
+                        },
+                    },
+                },
+            },
             series: series,
         });
+        // 圖表剛畫好時，若已有選取的月份要立刻套用淡出效果
+        this.highlightCategoryAnalysisChartPeriod(this.categoryAnalysis.selectedPeriod);
     }
 
+    // 未選取任何月份時：完整的 分類 x 期間 樞紐表
     renderCategoryPivotGrid(periods, categories, sums) {
         const cols = [{ field: "category", headerName: "分類", pinned: "left", minWidth: 140, flex: 1 }];
         periods.forEach((p) => {
@@ -2505,6 +2835,63 @@ class FinanceApp {
             });
             totalRow.__total = grand;
             rows.push(totalRow);
+        }
+
+        this.createDetailGrid("categoryPivotGrid", "categoryPivotGrid", cols, rows);
+    }
+
+    // 已選取某個月/年時：只顯示該期間的各分類金額與佔比，依金額由大到小排序
+    renderCategoryPivotGridForPeriod(period, categories, sums) {
+        const isYearGranularity = this.categoryAnalysis.granularity === "year";
+        const year = isYearGranularity ? period : period.slice(0, 4);
+        // 該年度所有月份（依目前已抓回的資料範圍，可能因為「起/迄」篩選而不滿 12 個月）
+        const periodsInYear = isYearGranularity
+            ? [period]
+            : (this.categoryAnalysis.lastData?.periods || []).filter((p) => p.startsWith(year + "-"));
+
+        const cols = [
+            { field: "category", headerName: "分類", pinned: "left", minWidth: 160, flex: 1 },
+            {
+                field: "amount",
+                headerName: "金額",
+                width: 160,
+                valueFormatter: (params) => "NT$ " + Math.round(Number(params.value || 0)).toLocaleString(),
+            },
+            {
+                field: "percent",
+                headerName: "佔比",
+                width: 120,
+                valueFormatter: (params) => Number(params.value || 0).toFixed(1) + "%",
+            },
+            {
+                field: "yearAvg",
+                headerName: `${year} 年度月均`,
+                width: 160,
+                valueFormatter: (params) => "NT$ " + Math.round(Number(params.value || 0)).toLocaleString(),
+            },
+        ];
+
+        let rows = categories
+            .map((cat) => {
+                const amount = Math.round(sums[cat][period] || 0);
+                const yearTotal = periodsInYear.reduce((s, p) => s + (sums[cat][p] || 0), 0);
+                const yearAvg = isYearGranularity
+                    ? yearTotal / 12
+                    : periodsInYear.length
+                      ? yearTotal / periodsInYear.length
+                      : 0;
+                return { category: cat, amount, yearAvg: Math.round(yearAvg) };
+            })
+            .filter((r) => r.amount !== 0);
+
+        const grandTotal = rows.reduce((s, r) => s + r.amount, 0);
+        const grandYearAvg = rows.reduce((s, r) => s + r.yearAvg, 0);
+        rows = rows
+            .map((r) => ({ ...r, percent: grandTotal ? (r.amount / grandTotal) * 100 : 0 }))
+            .sort((a, b) => b.amount - a.amount);
+
+        if (rows.length) {
+            rows.push({ category: "＝ 合計 ＝", amount: grandTotal, percent: 100, yearAvg: grandYearAvg });
         }
 
         this.createDetailGrid("categoryPivotGrid", "categoryPivotGrid", cols, rows);
@@ -2740,23 +3127,6 @@ class FinanceApp {
     }
 
     // ---------- 通用表單 ----------
-
-    getProjectForm() {
-        return `
-            <div style="display: flex; flex-direction: column; gap: 16px;">
-                <div>
-                    <label style="display: block; margin-bottom: 8px; color: #b0b0b0;">專案名稱</label>
-                    <input type="text" id="projectName" placeholder="請輸入專案名稱"
-                           style="width: 100%; padding: 12px; background-color: #2a2a2a; border: 1px solid #757575; border-radius: 8px; color: #ffffff; font-size: 14px;">
-                </div>
-                <div>
-                    <label style="display: block; margin-bottom: 8px; color: #b0b0b0;">預算金額</label>
-                    <input type="number" id="projectBudget" placeholder="請輸入預算金額"
-                           style="width: 100%; padding: 12px; background-color: #2a2a2a; border: 1px solid #757575; border-radius: 8px; color: #ffffff; font-size: 14px;">
-                </div>
-            </div>
-        `;
-    }
 
     getTransactionForm() {
         return `

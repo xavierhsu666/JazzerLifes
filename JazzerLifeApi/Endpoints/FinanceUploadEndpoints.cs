@@ -9,9 +9,12 @@ namespace JazzerLifeApi.Endpoints
 {
     public static class FinanceUploadEndpoints
     {
+        private const long MaxFileSizeBytes = 10 * 1024 * 1024; // 10MB，需與前端 finance.js 的限制一致
+        private const int MaxFileCount = 20;
+
         public static void MapFinanceUploadEndpoints(this WebApplication app)
         {
-            app.MapPost("/api/finance/upload-details", async (HttpRequest request, ClaimsPrincipal user, JazzerLifeContext db) =>
+            app.MapPost("/api/finance/upload-details", async (HttpRequest request, ClaimsPrincipal user, JazzerLifeContext db, ILogger<Program> logger) =>
             {
                 var userId = GetUserId(user);
                 if (userId == null)
@@ -24,6 +27,13 @@ namespace JazzerLifeApi.Endpoints
                 var files = form.Files;
                 if (files.Count == 0)
                     return Results.BadRequest(new { message = "沒有選擇檔案" });
+
+                if (files.Count > MaxFileCount)
+                    return Results.BadRequest(new { message = $"檔案數量超過上限（最多 {MaxFileCount} 個）" });
+
+                var oversized = files.Where(f => f.Length > MaxFileSizeBytes).Select(f => f.FileName).ToList();
+                if (oversized.Count > 0)
+                    return Results.BadRequest(new { message = $"以下檔案超過大小限制（{MaxFileSizeBytes / 1024 / 1024}MB）：{string.Join("、", oversized)}" });
 
                 if (!DateTime.TryParse(form["snapshotDate"], out var snapshotDate))
                     return Results.BadRequest(new { message = "請選擇有效的快照日期" });
@@ -126,7 +136,8 @@ namespace JazzerLifeApi.Endpoints
                     }
                     catch (Exception ex)
                     {
-                        errors.Add($"{file.FileName}: {ex.Message}");
+                        logger.LogError(ex, "Finance upload failed for file {FileName} (userId={UserId})", file.FileName, userId);
+                        errors.Add($"{file.FileName}: 檔案處理失敗，請確認格式是否正確");
                     }
                 }
 
