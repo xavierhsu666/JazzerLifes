@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="description" content="Jazzer Life - 提升生活效率的工具集" />
+    <meta name="author" content="Jazzer" />
+    <title>Jazzer Life.</title>
+
+    <!-- Bootstrap core CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css"
+        integrity="sha384-xOolHFLEh07PJGoPkLv1IbcEPTNtaed2xpHsD9ESMhqIYd0nLMwNLD69Npy4HI+N" crossorigin="anonymous" />
+
+    <!-- Custom styles -->
+    <link href="../assets/css/jumbotron.css" rel="stylesheet" />
+
+    <style>
+        :root {
+            --primary-dark: #2c3e50;
+            --accent-color: #27ae60;
+            --glass-bg: rgba(52, 58, 64, 0.95);
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Microsoft JhengHei', sans-serif;
+            background-color: #f4f7f6;
+        }
+
+        /* --- 導航列進化 --- */
+        .navbar {
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(12px);
+            background-color: var(--glass-bg) !important;
+            padding: 0.8rem 1rem;
+        }
+
+        .navbar-brand {
+            font-weight: 800;
+            letter-spacing: 1px;
+            color: #fff !important;
+        }
+
+        /* 手機版選單優化 */
+        @media (max-width: 767.98px) {
+            .navbar-collapse {
+                background: rgba(40, 45, 50, 0.98);
+                margin-top: 10px;
+                padding: 15px;
+                border-radius: 12px;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+            }
+
+            .nav-item {
+                border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+                padding: 5px 0;
+            }
+
+            /* 手機版登入/登出區塊 */
+            .nav-auth-section {
+                margin-top: 15px;
+                padding-top: 15px;
+                border-top: 2px solid var(--accent-color);
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            #navSign .btn {
+                width: 100%;
+                /* 手機版按鈕撐滿 */
+                margin: 5px 0;
+            }
+        }
+
+        /* --- Hero Section 進化版 --- */
+        .jumbotron {
+            background: linear-gradient(150deg, #1a2a3a 0%, #2c3e50 50%, #000000 100%);
+            color: white;
+            padding: 8rem 2rem 6rem 2rem;
+            /* 稍微縮減基礎內距 */
+            border-radius: 0;
+            margin-bottom: 0;
+            /* 預設電腦版保留斜切 */
+            clip-path: polygon(0 0, 100% 0, 100% 92%, 0% 100%);
+            position: relative;
+        }
+
+        /* 手機版專屬修正：解決文字被擋住的問題 */
+        @media (max-width: 767.98px) {
+            .jumbotron {
+                padding: 7rem 1.5rem 4rem 1.5rem;
+                /* 縮小上下間距，騰出空間 */
+                clip-path: none;
+                /* 手機版內容容易變長，直接取消斜切最保險 */
+                /* 或者改用下面這行微斜切（若你很喜歡斜切感的話，取消上一行的註解，並把下面這行打開） */
+                /* clip-path: polygon(0 0, 100% 0, 100% 98%, 0% 100%); */
+            }
+
+            .display-3 {
+                font-size: 2.5rem;
+                /* 手機版標題縮小一點，避免換行過多 */
+            }
+
+            .lead {
+                font-size: 1rem;
+                margin-bottom: 1.5rem;
+            }
+
+            /* 修正按鈕區塊，確保不被切到 */
+            .mt-5 {
+                margin-top: 2rem !important;
+            }
+        }
+
+        /* --- 卡片美化 --- */
+        .feature-card {
+            border: none;
+            border-radius: 16px;
+            transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+            height: 100%;
+            background: white;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+        }
+
+        .feature-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 30px rgba(0, 0, 0, 0.12);
+        }
+
+        .card-title-icon {
+            width: 45px;
+            height: 5px;
+            background: var(--accent-color);
+            margin-bottom: 15px;
+            border-radius: 2px;
+        }
+
+        /* 工具按鈕樣式 */
+        .btn-tool {
+            border-radius: 8px;
+            font-weight: 600;
+            transition: 0.2s;
+            margin: 4px;
+            border: 1px solid #eee;
+        }
+
+        .btn-tool:hover {
+            background-color: #f8f9fa;
+            transform: scale(1.05);
+        }
+
+        .nav-link {
+            cursor: pointer;
+        }
+    </style>
+    <link rel="icon" href="../assets/image/jazzerlife_logo.png" type="image/png" />
+</head>
+
+<body>
+    <!-- 導航列 -->
+    <nav class="navbar navbar-expand-md navbar-dark fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="index.html">JAZZER LIFE</a>
+            <button class="navbar-toggler border-0" type="button" data-toggle="collapse"
+                data-target="#navbarsExampleDefault">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarsExampleDefault">
+                <ul class="navbar-nav mr-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" onclick="checkLogStatus('finance.html')">💰 FinanceTracker</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" onclick="checkLogStatus('car.html')">🚗 AutoCare Manager</a>
+                    </li>
+                </ul>
+                <!-- 登入/帳號狀態區塊 -->
+                <div class="nav-auth-section" id="navSign">
+                    <!-- 這裡會由 JS 填入內容，CSS 已預設手機版排版 -->
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main role="main">
+        <!-- Hero Section -->
+        <div class="jumbotron text-center">
+            <div class="container">
+                <h1 class="display-3">Efficiency, <span style="color: #27ae60;">Simplified.</span></h1>
+                <p class="lead mt-3 mx-auto" style="max-width: 700px; opacity: 0.9;">
+                    整合日常財務與車輛管理工具，專為追求效率的你而生。
+                </p>
+                <div class="mt-5 d-flex flex-column flex-sm-row justify-content-center" style="gap: 15px;">
+                    <a class="btn btn-success btn-lg px-5 shadow-sm" href="signin.html#index" role="button"
+                        id="loginbtn" style="border-radius: 12px;">Log-In &raquo;</a>
+                    <a class="btn btn-outline-light btn-lg px-5" href="regis.html" role="button" id="logoutbtn"
+                        style="border-radius: 12px;">Register &raquo;</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="container mt-5">
+            <div class="row">
+                <!-- Finance Tracker -->
+                <div class="col-md-4 mb-4">
+                    <div class="card feature-card p-4">
+                        <div class="card-body d-flex flex-column">
+                            <div class="card-title-icon" style="background: #007bff;"></div>
+                            <h2 class="h4 font-weight-bold mb-3">Finance Tracker</h2>
+                            <p class="text-muted flex-grow-1 small">
+                                整合資產管理、股票損益與收支分析。協助你從海量數據中提煉出清晰的資產脈絡。
+                            </p>
+                            <a class="btn btn-primary btn-block mt-3" href="finance.html" role="button"
+                                style="border-radius: 8px;">進入系統</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AutoCare Manager -->
+                <div class="col-md-4 mb-4">
+                    <div class="card feature-card p-4">
+                        <div class="card-body d-flex flex-column">
+                            <div class="card-title-icon" style="background: #28a745;"></div>
+                            <h2 class="h4 font-weight-bold mb-3">AutoCare Manager</h2>
+                            <p class="text-muted flex-grow-1 small">
+                                數位化車輛紀錄：精確追蹤油耗、維修進度與支出。讓愛車保養不再憑感覺。
+                            </p>
+                            <a class="btn btn-success btn-block mt-3" href="car.html" role="button"
+                                style="border-radius: 8px;">進入系統</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Jazzer Tools -->
+                <div class="col-md-4 mb-4">
+                    <div class="card feature-card p-4">
+                        <div class="card-body">
+                            <div class="card-title-icon" style="background: #17a2b8;"></div>
+                            <h2 class="h4 font-weight-bold mb-3">Small Tools</h2>
+                            <p class="text-muted small">高效便捷的小型實用工具：</p>
+                            <div class="d-flex flex-wrap mt-3">
+                                <a class="btn btn-light btn-tool flex-fill text-center" href="Money Split.html">分帳工具</a>
+                                <a class="btn btn-light btn-tool flex-fill text-center"
+                                    href="http://jzshome.ddns.net:443/">股票預測</a>
+                                <a class="btn btn-light btn-tool flex-fill text-center" href="./car_new.html">車輛管理</a>
+                                <a class="btn btn-light btn-tool flex-fill text-center" href="./Monitor.html">監控儀表</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="container text-center py-5">
+        <p class="text-muted small">&copy; Jazzer Workspace 2026 | Built for Efficiency</p>
+    </footer>
+
+    <!-- Scripts: 嚴格保留 JS 呼叫 -->
+    <script src="https://code.jquery.com/jquery-3.7.1.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"
+        crossorigin="anonymous"></script>
+    <script src="../assets/js/common.js"></script>
+    <script src="../assets/js/index.js"></script>
+</body>
+
+</html>

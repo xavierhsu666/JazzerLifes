@@ -1,0 +1,725 @@
+@charset "UTF-8";
+/* ==========================================================================
+   JazzerLife AutoCare Manager — Modern Dark Theme
+   介面升級：與 JazzerLife Finance 一致的深色質感主題。
+   僅覆寫既有 Bootstrap 4 樣式，不更動 HTML 結構與 car.js 邏輯。
+   ========================================================================== */
+
+:root {
+  --car-bg: #0f1720;
+  --car-surface: #1a2332;
+  --car-surface-2: #212d3d;
+  --car-surface-3: #283647;
+  --car-border: #2c3a4d;
+  --car-text: #e6edf3;
+  --car-muted: #8b98a9;
+  --car-accent: #00bcd4;
+  --car-accent-hover: #26c6da;
+  --car-success: #4caf50;
+  --car-danger: #f44336;
+  --car-warning: #ffbf00;
+  --car-radius: 12px;
+  --car-radius-sm: 8px;
+  --car-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --car-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.25);
+  --car-transition: 0.2s ease;
+}
+
+/* ---------- 基礎 ---------- */
+body {
+  background-color: var(--car-bg);
+  color: var(--car-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+main[role="main"] {
+  padding-top: 1.5rem;
+  padding-bottom: 3rem;
+}
+
+h1,
+h2,
+h3,
+.h1,
+.h2,
+.h3 {
+  color: var(--car-text);
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+main section > h1,
+main section > h2 {
+  position: relative;
+  padding-bottom: 0.75rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--car-border);
+}
+
+main section > h1::after,
+main section > h2::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: 56px;
+  height: 3px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--car-accent), var(--car-success));
+}
+
+hr,
+.hr {
+  border-color: var(--car-border);
+  opacity: 1;
+}
+
+/* ---------- 頂部 Navbar ---------- */
+.navbar.bg-dark {
+  background: linear-gradient(90deg, #131c27, #1a2332) !important;
+  border-bottom: 1px solid var(--car-border);
+  box-shadow: var(--car-shadow-sm);
+}
+
+.navbar-brand {
+  font-weight: 700 !important;
+  letter-spacing: 0.3px;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.navbar-brand::before {
+  content: "\1F697";
+  margin-right: 0.4em;
+}
+
+.headBarSeclect,
+.form-control-dark {
+  height: auto;
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid var(--car-border) !important;
+  color: var(--car-text) !important;
+  border-radius: var(--car-radius-sm) !important;
+  padding: 0.55rem 1rem !important;
+  transition: var(--car-transition);
+}
+
+.headBarSeclect:focus,
+.form-control-dark:focus {
+  box-shadow: 0 0 0 3px rgba(0, 188, 212, 0.3) !important;
+  border-color: var(--car-accent) !important;
+}
+
+.headBarSeclect option {
+  background-color: var(--car-surface);
+  color: var(--car-text);
+}
+
+/* ---------- 側邊欄 ---------- */
+.sidebar,
+.sidebar.bg-light {
+  background: var(--car-surface) !important;
+  border-right: 1px solid var(--car-border);
+  box-shadow: inset -1px 0 0 var(--car-border);
+}
+
+.sidebar .nav-link {
+  color: var(--car-muted);
+  font-weight: 500;
+  border-radius: var(--car-radius-sm);
+  margin: 2px 10px;
+  padding: 0.65rem 0.9rem;
+  display: flex;
+  align-items: center;
+  transition: var(--car-transition);
+  cursor: pointer;
+}
+
+.sidebar .nav-link .feather {
+  margin-right: 10px;
+  color: var(--car-muted);
+  transition: var(--car-transition);
+}
+
+.sidebar .nav-link:hover {
+  background: var(--car-surface-2);
+  color: var(--car-text);
+  cursor: pointer;
+}
+
+.sidebar .nav-link:hover .feather {
+  color: var(--car-accent);
+}
+
+.sidebar .nav-link.active {
+  background: linear-gradient(90deg, rgba(0, 188, 212, 0.18), rgba(0, 188, 212, 0.02));
+  color: #fff;
+  box-shadow: inset 3px 0 0 var(--car-accent);
+}
+
+.sidebar .nav-link.active .feather {
+  color: var(--car-accent);
+}
+
+.sidebar-heading {
+  color: var(--car-muted) !important;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.sidebar-heading a {
+  color: var(--car-muted) !important;
+}
+
+/* ---------- 卡片式容器（圖表 / 表格） ---------- */
+#chart_area,
+.table-responsive,
+.table-container {
+  background: var(--car-surface);
+  border: 1px solid var(--car-border);
+  border-radius: var(--car-radius);
+  padding: 1.25rem;
+  box-shadow: var(--car-shadow-sm);
+  margin-bottom: 1.5rem;
+}
+
+#chart_area {
+  min-height: 120px;
+}
+
+/* ---------- 按鈕 ---------- */
+.btn {
+  border-radius: var(--car-radius-sm);
+  font-weight: 600;
+  transition: var(--car-transition);
+  border: none;
+}
+
+.btn:focus {
+  box-shadow: 0 0 0 3px rgba(0, 188, 212, 0.25);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--car-accent), #0097a7);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, var(--car-accent-hover), var(--car-accent));
+  transform: translateY(-1px);
+}
+
+.btn-dark {
+  background: var(--car-surface-3);
+  color: var(--car-text);
+  border: 1px solid var(--car-border);
+}
+
+.btn-dark:hover {
+  background: var(--car-surface-2);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.btn-info {
+  background: linear-gradient(135deg, #26c6da, #00acc1);
+  color: #fff;
+}
+
+.btn-info:hover {
+  background: #00acc1;
+  color: #fff;
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #ef5350, var(--car-danger));
+  color: #fff;
+}
+
+.btn-danger:hover {
+  background: #e53935;
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.btn-outline-secondary {
+  color: var(--car-muted);
+  border: 1px solid var(--car-border);
+  background: transparent;
+}
+
+.btn-outline-secondary:hover {
+  background: var(--car-surface-2);
+  color: var(--car-text);
+  border-color: var(--car-accent);
+}
+
+.btn-group .btn,
+.btn-group-toggle .btn {
+  border-radius: 0;
+}
+
+.btn-group .btn:first-child {
+  border-top-left-radius: var(--car-radius-sm);
+  border-bottom-left-radius: var(--car-radius-sm);
+}
+
+.btn-group .btn:last-child {
+  border-top-right-radius: var(--car-radius-sm);
+  border-bottom-right-radius: var(--car-radius-sm);
+}
+
+/* 懸浮才顯示的 + / Submit 按鈕 */
+tr:hover .hover-button {
+  display: block;
+}
+
+/* ---------- 表單元素 ---------- */
+.form-control,
+.form-select {
+  background-color: var(--car-surface-2);
+  border: 1px solid var(--car-border);
+  color: var(--car-text);
+  border-radius: var(--car-radius-sm);
+  transition: var(--car-transition);
+}
+
+.form-control:focus,
+.form-select:focus {
+  background-color: var(--car-surface-2);
+  border-color: var(--car-accent);
+  color: var(--car-text);
+  box-shadow: 0 0 0 3px rgba(0, 188, 212, 0.25);
+}
+
+.form-control::placeholder {
+  color: var(--car-muted);
+}
+
+.form-control[readonly] {
+  background-color: var(--car-surface-3);
+  color: var(--car-muted);
+}
+
+.form-select option {
+  background-color: var(--car-surface);
+  color: var(--car-text);
+}
+
+/* ---------- 表格 ---------- */
+.table {
+  color: var(--car-text);
+  margin-bottom: 0;
+  border-color: var(--car-border);
+}
+
+.table thead th,
+.table thead td {
+  background: var(--car-surface-3);
+  color: var(--car-text);
+  border-color: var(--car-border);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+  letter-spacing: 0.5px;
+}
+
+.table td,
+.table th {
+  border-color: var(--car-border);
+  vertical-align: middle;
+}
+
+.table-bordered,
+.table-bordered td,
+.table-bordered th {
+  border-color: var(--car-border);
+}
+
+.table.table-dark {
+  background: var(--car-surface);
+}
+
+.table tbody tr {
+  transition: background-color var(--car-transition);
+}
+
+.table tbody tr:hover {
+  background-color: var(--car-surface-2);
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+#parts_table tr td {
+  vertical-align: middle;
+}
+
+/* ---------- Dropdown ---------- */
+.dropdown-menu {
+  background-color: var(--car-surface);
+  border: 1px solid var(--car-border);
+  border-radius: var(--car-radius-sm);
+  box-shadow: var(--car-shadow);
+}
+
+.dropdown-item {
+  color: var(--car-text);
+}
+
+.dropdown-item:hover {
+  background-color: var(--car-surface-2);
+  color: var(--car-accent);
+}
+
+/* ==========================================================================
+   從 HTML 內聯樣式遷移（原本寫在 car.html 的 style 屬性 / <style> 區塊）
+   ========================================================================== */
+
+/* head <style> 的 placeholder 圖片樣式 */
+.bd-placeholder-img {
+  font-size: 1.125rem;
+  text-anchor: middle;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+@media (min-width: 768px) {
+  .bd-placeholder-img-lg {
+    font-size: 3.5rem;
+  }
+}
+
+/* 直式表單表格（Oil Record / Vehicle 編輯 / Parts 編輯） */
+.car-form-table {
+  text-align: center;
+  table-layout: auto;
+  font-size: larger;
+  vertical-align: middle;
+}
+
+.car-form-table .form-control {
+  text-align: center;
+}
+
+#parts_table {
+  margin-bottom: 0;
+}
+
+#OILSelect {
+  padding-left: 5px;
+}
+
+/* 工具列（新增 / 送出按鈕的對齊） */
+.car-toolbar-right {
+  text-align: right;
+}
+
+.car-toolbar-center {
+  text-align: center;
+}
+
+/* 讓 hover-button 不要有上邊距（原 inline margin-top: 0） */
+.hover-button {
+  margin-top: 0;
+}
+
+/* Parts 編輯的送出按鈕與刪除按鈕間距（原 inline margin-right: 20px） */
+.car-btn-gap {
+  margin-right: 20px;
+}
+
+/* ag-Grid 容器需要明確高度，否則會 0 高度看不到 */
+.car-grid {
+  width: 100%;
+  height: 480px;
+}
+
+/* ag-Grid（quartz dark）配色對齊網站深色主題 */
+.ag-theme-quartz-dark {
+  --ag-background-color: #1a2332;
+  --ag-foreground-color: #e6edf3;
+  --ag-border-color: #2c3a4d;
+  --ag-row-border-color: #2c3a4d;
+  --ag-header-background-color: #283647;
+  --ag-header-foreground-color: #e6edf3;
+  --ag-odd-row-background-color: #1e2836;
+  --ag-row-hover-color: #212d3d;
+  --ag-control-panel-background-color: #1a2332;
+  --ag-subheader-background-color: #1a2332;
+  --ag-selected-row-background-color: rgba(0, 188, 212, 0.15);
+  --ag-range-selection-background-color: rgba(0, 188, 212, 0.15);
+  --ag-input-focus-border-color: #00bcd4;
+  --ag-accent-color: #00bcd4;
+  --ag-active-color: #00bcd4;
+  --ag-checkbox-checked-color: #00bcd4;
+  --ag-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif;
+  border: 1px solid var(--car-border);
+  border-radius: var(--car-radius-sm);
+  overflow: hidden;
+}
+
+/* ---------- Oil Record ---------- */
+.oil-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+  margin-bottom: 1.25rem;
+}
+
+.oil-kpi-card {
+  background: var(--car-surface);
+  border: 1px solid var(--car-border);
+  border-radius: var(--car-radius);
+  padding: 16px 18px;
+  box-shadow: var(--car-shadow-sm);
+}
+
+.oil-kpi-label {
+  color: var(--car-muted);
+  font-size: 0.8rem;
+  margin-bottom: 6px;
+}
+
+.oil-kpi-value {
+  color: var(--car-accent);
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.oil-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
+.oil-toolbar-label {
+  color: var(--car-muted);
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.oil-dim-select {
+  width: auto;
+  min-width: 100px;
+}
+
+.oil-form-card {
+  background: var(--car-surface);
+  border: 1px solid var(--car-border);
+  border-radius: var(--car-radius);
+  padding: 1.25rem;
+  box-shadow: var(--car-shadow-sm);
+  margin-bottom: 1.5rem;
+}
+
+.oil-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.oil-field label {
+  display: block;
+  color: var(--car-muted);
+  font-size: 0.85rem;
+  margin-bottom: 6px;
+}
+
+.oil-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin: 16px 0;
+  padding: 12px 16px;
+  background: var(--car-surface-2);
+  border-radius: var(--car-radius-sm);
+  color: var(--car-muted);
+  font-size: 0.9rem;
+}
+
+.oil-preview b {
+  color: var(--car-text);
+}
+
+#oilTrendChart {
+  min-height: 320px;
+}
+
+/* ---------- Dashboard ---------- */
+.dash-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  margin-bottom: 1.5rem;
+}
+
+.dash-panel {
+  background: var(--car-surface);
+  border: 1px solid var(--car-border);
+  border-radius: var(--car-radius);
+  padding: 1.25rem;
+  box-shadow: var(--car-shadow-sm);
+  margin-bottom: 1.5rem;
+}
+
+.dash-grid-2 .dash-panel {
+  margin-bottom: 0;
+}
+
+.dash-panel > h2 {
+  margin-bottom: 1rem;
+}
+
+.dash-chart {
+  min-height: 300px;
+}
+
+/* Dashboard 油耗趨勢圖（#chart_area）需要明確高度，否則會過矮、Y 軸標題重疊 */
+#chart_area {
+  min-height: 340px;
+  width: 100%;
+}
+
+/* 面板標題列（標題 + 右側篩選） */
+.dash-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.dash-panel-head > h2 {
+  margin-bottom: 0;
+}
+
+/* 保養提醒清單 */
+.dash-reminders {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.dash-reminder-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--car-surface-2);
+  border-radius: var(--car-radius-sm);
+}
+
+.dash-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dash-reminder-part {
+  font-weight: 600;
+  color: var(--car-text);
+  min-width: 90px;
+}
+
+.dash-reminder-status {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 999px;
+}
+
+.dash-reminder-detail {
+  margin-left: auto;
+  color: var(--car-muted);
+  font-size: 0.85rem;
+  text-align: right;
+}
+
+/* 狀態顏色 */
+.dash-red {
+  background: var(--car-danger);
+}
+.dash-yellow {
+  background: var(--car-warning);
+}
+.dash-green {
+  background: var(--car-success);
+}
+.dash-none {
+  background: var(--car-muted);
+}
+
+.dash-badge-red {
+  background: rgba(244, 67, 54, 0.18);
+  color: #ff6b5e;
+}
+.dash-badge-yellow {
+  background: rgba(255, 191, 0, 0.18);
+  color: #ffcf40;
+}
+.dash-badge-green {
+  background: rgba(76, 175, 80, 0.18);
+  color: #6fd074;
+}
+.dash-badge-none {
+  background: rgba(139, 152, 169, 0.18);
+  color: var(--car-muted);
+}
+
+/* 最近活動清單 */
+.dash-recent {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dash-recent-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--car-surface-2);
+  border-radius: var(--car-radius-sm);
+  color: var(--car-text);
+  font-size: 0.88rem;
+}
+
+.dash-recent-item span {
+  color: var(--car-muted);
+}
+
+.dash-recent-item span:first-child {
+  color: var(--car-text);
+}
+
+.dash-empty {
+  color: var(--car-muted);
+  padding: 12px;
+  text-align: center;
+}
+
+/* ---------- 響應式微調 ---------- */
+@media (max-width: 767.98px) {
+  main[role="main"] {
+    padding-top: 1rem;
+  }
+
+  #chart_area,
+  .table-responsive,
+  .table-container {
+    padding: 0.85rem;
+  }
+}

@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <meta name="theme-color" content="#0F172A">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>MyCar Dashboard — Macro Monitor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class', theme: {
+                extend: {
+                    colors: {
+                        primary: { DEFAULT: '#1E3A8A', light: '#3B82F6', dark: '#1E3070' },
+                        surface: { DEFAULT: '#1E293B', dark: '#0F172A', light: '#334155' },
+                        warn: '#F59E0B', danger: '#DC2626', success: '#10B981', accent: '#065F46',
+                    }, fontFamily: { sans: ['"Noto Sans TC"', 'sans-serif'], mono: ['"JetBrains Mono"', 'monospace'] }
+                }
+            }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box
+        }
+
+        body {
+            background: #0F172A;
+            color: #E2E8F0;
+            font-family: 'Noto Sans TC', sans-serif;
+            overflow-x: hidden
+        }
+
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace
+        }
+
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0F172A
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px
+        }
+
+        .spark-canvas {
+            width: 100% !important;
+            height: 40px !important
+        }
+
+        .detail-chart-canvas {
+            width: 100% !important;
+            height: 220px !important
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 220px;
+            min-height: 100vh;
+            background: #111827;
+            border-right: 1px solid #1F2937;
+            transition: transform .3s ease;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 50;
+            display: flex;
+            flex-direction: column
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(-220px)
+        }
+
+        .sidebar-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, .5);
+            z-index: 45;
+            display: none
+        }
+
+        .sidebar-overlay.show {
+            display: block
+        }
+
+        @media(min-width:1024px) {
+            .sidebar {
+                position: sticky;
+                top: 0;
+                transform: none !important
+            }
+
+            .sidebar-overlay {
+                display: none !important
+            }
+
+            .main-wrap {
+                margin-left: 0
+            }
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #94A3B8;
+            transition: all .15s;
+            cursor: pointer;
+            margin: 2px 8px
+        }
+
+        .nav-link:hover {
+            background: #1E293B;
+            color: #E2E8F0
+        }
+
+        .nav-link.active {
+            background: #1E3A8A;
+            color: #fff;
+            font-weight: 500
+        }
+
+        .nav-link .badge-sm {
+            margin-left: auto;
+            background: #DC2626;
+            color: #fff;
+            font-size: 10px;
+            padding: 1px 6px;
+            border-radius: 999px;
+            font-weight: 600
+        }
+
+        /* Cards */
+        .metric-card {
+            background: #1E293B;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 16px;
+            transition: all .25s;
+            position: relative;
+            overflow: hidden
+        }
+
+        .metric-card:hover {
+            border-color: #3B82F6;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(30, 58, 138, .25)
+        }
+
+        .metric-card .glow {
+            position: absolute;
+            top: -40%;
+            right: -40%;
+            width: 80%;
+            height: 80%;
+            background: radial-gradient(circle, rgba(59, 130, 246, .06) 0%, transparent 70%);
+            pointer-events: none
+        }
+
+        /* Toast */
+        .toast-container {
+            position: fixed;
+            top: 70px;
+            right: 16px;
+            z-index: 999;
+            display: flex;
+            flex-direction: column;
+            gap: 8px
+        }
+
+        .toast {
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            animation: slideIn .3s ease-out;
+            min-width: 300px;
+            max-width: 420px;
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, .4)
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(120%);
+                opacity: 0
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                opacity: 1
+            }
+
+            to {
+                transform: translateX(120%);
+                opacity: 0
+            }
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, .6);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .2s
+        }
+
+        .modal-overlay.show {
+            opacity: 1;
+            pointer-events: auto
+        }
+
+        .modal-box {
+            background: #1E293B;
+            border: 1px solid #334155;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 720px;
+            max-height: 90vh;
+            overflow-y: auto;
+            transform: scale(.95);
+            transition: transform .2s
+        }
+
+        .modal-overlay.show .modal-box {
+            transform: scale(1)
+        }
+
+        /* Section */
+        .section-title {
+            font-size: 13px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #64748B;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px
+        }
+
+        .section-title::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #334155
+        }
+
+        /* Thermo */
+        .thermo-bar {
+            transition: width .8s cubic-bezier(.4, 0, .2, 1)
+        }
+
+        /* Page transitions */
+        .page {
+            display: none;
+            animation: fadeUp .3s ease
+        }
+
+        .page.active {
+            display: block
+        }
+
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(12px)
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0)
+            }
+        }
+
+        /* Grid */
+        .dash-grid {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: repeat(auto-fill, minmax(255px, 1fr))
+        }
+
+        @media(min-width:1280px) {
+            .dash-grid {
+                grid-template-columns: repeat(4, 1fr)
+            }
+        }
+
+        @media(min-width:1536px) {
+            .dash-grid {
+                grid-template-columns: repeat(5, 1fr)
+            }
+        }
+
+        /* Regime badge */
+        .regime-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 16px;
+            border-radius: 999px;
+            font-weight: 600;
+            font-size: 14px
+        }
+
+        /* Calendar */
+        .cal-row {
+            display: grid;
+            grid-template-columns: 72px 1fr 72px 72px 72px 56px;
+            gap: 6px;
+            align-items: center;
+            padding: 10px 12px;
+            border-bottom: 1px solid #1E293B;
+            font-size: 13px
+        }
+
+        .cal-row:hover {
+            background: #1E293B;
+            border-radius: 8px
+        }
+
+        @media(max-width:640px) {
+            .cal-row {
+                grid-template-columns: 56px 1fr 56px 56px 56px
+            }
+        }
+
+        /* Pulse */
+        @keyframes pulse-ring {
+            0% {
+                transform: scale(.8);
+                opacity: 1
+            }
+
+            100% {
+                transform: scale(2.2);
+                opacity: 0
+            }
+        }
+
+        .badge-pulse::before {
+            content: '';
+            position: absolute;
+            inset: -4px;
+            border-radius: 50%;
+            background: inherit;
+            animation: pulse-ring 1.5s ease-out infinite;
+            opacity: .4
+        }
+
+        /* Toggle switch */
+        .toggle {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            border-radius: 12px;
+            background: #334155;
+            cursor: pointer;
+            transition: background .2s
+        }
+
+        .toggle.on {
+            background: #3B82F6
+        }
+
+        .toggle::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #fff;
+            transition: transform .2s
+        }
+
+        .toggle.on::after {
+            transform: translateX(20px)
+        }
+
+        /* Alert rule card */
+        .rule-card {
+            background: #111827;
+            border: 1px solid #1F2937;
+            border-radius: 10px;
+            padding: 14px;
+            transition: border-color .2s
+        }
+
+        .rule-card:hover {
+            border-color: #334155
+        }
+
+        /* Fullscreen btn */
+        .fs-btn {
+            position: fixed;
+            bottom: 16px;
+            right: 16px;
+            z-index: 40
+        }
+
+        /* Tab pill */
+        .tab-pill {
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all .15s
+        }
+
+        .tab-pill.active {
+            background: #1E3A8A;
+            color: #fff
+        }
+
+        .tab-pill:not(.active) {
+            background: #1E293B;
+            color: #94A3B8
+        }
+
+        .tab-pill:not(.active):hover {
+            background: #334155;
+            color: #E2E8F0
+        }
+    </style>
+</head>
+
+<body class="min-h-screen flex">
+
+    <!-- ================================ SIDEBAR ================================ -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+    <aside class="sidebar collapsed" id="sidebar">
+        <!-- Logo -->
+        <div class="p-4 flex items-center gap-3 border-b border-slate-800">
+            <div class="w-9 h-9 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
+                <i data-lucide="gauge" class="w-5 h-5 text-white"></i>
+            </div>
+            <div>
+                <div class="font-bold text-sm tracking-wide">MyCar <span class="text-primary-light">Dashboard</span>
+                </div>
+                <div class="text-[10px] text-slate-500">Macro Monitor v1.0</div>
+            </div>
+        </div>
+
+        <!-- Nav -->
+        <nav class="flex-1 py-3 space-y-0.5" id="sidebarNav">
+            <div class="px-4 py-1 text-[10px] text-slate-600 uppercase tracking-widest">監控中心</div>
+            <div class="nav-link active" data-page="dashboard"><i data-lucide="layout-dashboard"
+                    class="w-4 h-4"></i>總覽儀錶板</div>
+            <div class="nav-link" data-page="metrics"><i data-lucide="bar-chart-3" class="w-4 h-4"></i>指標明細</div>
+            <div class="nav-link" data-page="regime"><i data-lucide="brain" class="w-4 h-4"></i>情境分析</div>
+            <div class="px-4 py-1 mt-3 text-[10px] text-slate-600 uppercase tracking-widest">管理工具</div>
+            <div class="nav-link" data-page="alerts"><i data-lucide="siren" class="w-4 h-4"></i>警示管理<span
+                    class="badge-sm">3</span></div>
+            <div class="nav-link" data-page="calendar"><i data-lucide="calendar-days" class="w-4 h-4"></i>財經日曆</div>
+            <div class="nav-link" data-page="portfolio"><i data-lucide="pie-chart" class="w-4 h-4"></i>資產配置</div>
+            <div class="px-4 py-1 mt-3 text-[10px] text-slate-600 uppercase tracking-widest">系統</div>
+            <div class="nav-link" data-page="settings"><i data-lucide="settings" class="w-4 h-4"></i>系統設定</div>
+        </nav>
+
+        <!-- User -->
+        <div class="p-4 border-t border-slate-800 flex items-center gap-3">
+            <div
+                class="w-8 h-8 rounded-full bg-primary-light/20 flex items-center justify-center text-primary-light text-xs font-bold">
+                JZ</div>
+            <div class="min-w-0">
+                <div class="text-xs font-medium truncate">Jia-Ze Hsu</div>
+                <div class="text-[10px] text-slate-500">OMT PROD. DX</div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ================================ MAIN AREA ================================ -->
+    <div class="flex-1 flex flex-col min-h-screen" id="mainWrap">
+
+        <!-- Top Bar -->
+        <header class="sticky top-0 z-40 bg-surface-dark/90 backdrop-blur border-b border-slate-700/60">
+            <div class="px-4 h-14 flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <button class="p-2 hover:bg-slate-700 rounded-lg lg:hidden" onclick="toggleSidebar()">
+                        <i data-lucide="menu" class="w-5 h-5"></i>
+                    </button>
+                    <h1 class="text-sm font-semibold hidden sm:block" id="pageTitle">總覽儀錶板</h1>
+                </div>
+                <!-- Status -->
+                <div class="hidden md:flex items-center gap-3 text-xs text-slate-400">
+                    <span class="flex items-center gap-1.5"><span
+                            class="w-2 h-2 rounded-full bg-success animate-pulse"></span>即時</span>
+                    <span>更新：<span class="font-mono text-slate-300" id="lastUpdate">--:--:--</span></span>
+                    <span>倒數：<span class="font-mono text-primary-light" id="nextUpdate">30s</span></span>
+                </div>
+                <!-- Actions -->
+                <div class="flex items-center gap-2">
+                    <!-- Search -->
+                    <div class="relative hidden sm:block">
+                        <input type="text" id="globalSearch" placeholder="搜尋指標…" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-1.5 text-xs w-40 focus:w-56 focus:border-primary-light
+          focus:outline-none transition-all placeholder:text-slate-500" oninput="onGlobalSearch(this.value)">
+                        <i data-lucide="search"
+                            class="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"></i>
+                    </div>
+                    <div id="clockDisplay" class="font-mono text-xs text-slate-400 hidden lg:block"></div>
+                    <button class="relative p-2 hover:bg-slate-700 rounded-lg"
+                        onclick="showToast('warn','殖利率倒掛持續中！10Y-2Y = -18bps')">
+                        <i data-lucide="bell" class="w-5 h-5"></i>
+                        <span
+                            class="absolute -top-0.5 -right-0.5 w-5 h-5 bg-danger rounded-full text-[10px] font-bold flex items-center justify-center badge-pulse"
+                            style="background:#DC2626" id="alertBadge">3</span>
+                    </button>
+                    <button class="p-2 hover:bg-slate-700 rounded-lg" onclick="refreshAll()" title="刷新">
+                        <i data-lucide="refresh-cw" class="w-5 h-5" id="refreshIcon"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Toast Container -->
+        <div class="toast-container" id="toastContainer"></div>
+
+        <!-- ================================ PAGES ================================ -->
+        <main class="flex-1 p-4 md:p-6 space-y-0 overflow-y-auto">
+
+            <!-- ==================== PAGE: Dashboard ==================== -->
+            <div class="page active" id="page-dashboard">
+                <!-- KPI Summary Row -->
+                <div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-3 mb-6" id="kpiRow"></div>
+
+                <!-- Regime + Risk -->
+                <div class="grid gap-4 md:grid-cols-3 mb-6">
+                    <!-- Regime -->
+                    <div class="metric-card flex flex-col items-center justify-center text-center py-6">
+                        <div class="glow"></div>
+                        <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Macro Regime</p>
+                        <div class="regime-badge bg-warn/20 text-warn mb-3" id="regimeBadge">
+                            <i data-lucide="flame" class="w-4 h-4"></i><span id="regimeText">過熱期 Overheating</span>
+                        </div>
+                        <p class="text-xs text-slate-500 leading-relaxed max-w-xs" id="regimeDesc">
+                            通膨居高不下、PMI 仍處擴張區間、Fed 維持高利率。需關注利率倒掛與 VIX 突升風險。
+                        </p>
+                    </div>
+                    <!-- Thermometer -->
+                    <div class="metric-card flex flex-col justify-center">
+                        <div class="glow"></div>
+                        <p class="text-xs text-slate-400 mb-3 flex items-center gap-1"><i data-lucide="thermometer"
+                                class="w-3.5 h-3.5"></i>風險溫度計</p>
+                        <div class="flex items-end gap-3 mb-3">
+                            <span class="font-mono text-4xl font-bold text-warn" id="riskScore">68</span>
+                            <span class="text-sm text-slate-400 mb-1">/ 100</span>
+                        </div>
+                        <div class="w-full h-3 bg-slate-700 rounded-full overflow-hidden">
+                            <div class="thermo-bar h-full rounded-full" id="thermoBar"
+                                style="width:68%;background:linear-gradient(90deg,#10B981 0%,#F59E0B 50%,#DC2626 100%)">
+                            </div>
+                        </div>
+                        <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+                            <span>安全</span><span>警戒</span><span>危險</span>
+                        </div>
+                    </div>
+                    <!-- Scenarios -->
+                    <div class="metric-card">
+                        <div class="glow"></div>
+                        <p class="text-xs text-slate-400 mb-3 flex items-center gap-1"><i data-lucide="radar"
+                                class="w-3.5 h-3.5"></i>多劇本偵測</p>
+                        <div class="space-y-3" id="scenarioList"></div>
+                    </div>
+                </div>
+
+                <!-- Metrics Grid -->
+                <div class="section-title"><i data-lucide="layout-grid" class="w-4 h-4"></i>即時指標 Live Metrics</div>
+                <div class="flex flex-wrap gap-2 mb-4" id="catTabs"></div>
+                <div class="dash-grid" id="metricsGrid"></div>
+            </div>
+
+            <!-- ==================== PAGE: Metrics Detail ==================== -->
+            <div class="page" id="page-metrics">
+                <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                    <div class="section-title mb-0"><i data-lucide="bar-chart-3" class="w-4 h-4"></i>指標明細 Metrics
+                        Explorer</div>
+                    <div class="flex gap-2">
+                        <select id="metricCatFilter"
+                            class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-primary-light"
+                            onchange="renderMetricsTable()">
+                            <option value="all">全部分類</option>
+                        </select>
+                        <select id="metricStatusFilter"
+                            class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-primary-light"
+                            onchange="renderMetricsTable()">
+                            <option value="all">全部狀態</option>
+                            <option value="danger">🔴 危險</option>
+                            <option value="warn">🟡 警告</option>
+                            <option value="success">🟢 正常</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="metric-card overflow-x-auto">
+                    <table class="w-full text-sm" id="metricsTable">
+                        <thead>
+                            <tr class="text-[11px] text-slate-500 uppercase tracking-wider border-b border-slate-600">
+                                <th class="text-left py-3 px-3 cursor-pointer hover:text-slate-300"
+                                    onclick="sortMetricsTable('name')">指標名稱 ↕</th>
+                                <th class="text-left py-3 px-3">分類</th>
+                                <th class="text-right py-3 px-3 cursor-pointer hover:text-slate-300"
+                                    onclick="sortMetricsTable('value')">當前值 ↕</th>
+                                <th class="text-right py-3 px-3">前值</th>
+                                <th class="text-right py-3 px-3 cursor-pointer hover:text-slate-300"
+                                    onclick="sortMetricsTable('change')">變動 ↕</th>
+                                <th class="text-center py-3 px-3">狀態</th>
+                                <th class="text-center py-3 px-3">趨勢</th>
+                                <th class="text-center py-3 px-3">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="metricsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ==================== PAGE: Regime ==================== -->
+            <div class="page" id="page-regime">
+                <div class="section-title mb-4"><i data-lucide="brain" class="w-4 h-4"></i>宏觀情境分析 Macro Regime Analysis
+                </div>
+                <div class="grid gap-4 lg:grid-cols-2 mb-6">
+                    <!-- Regime Radar Chart -->
+                    <div class="metric-card" style="min-height:350px">
+                        <div class="glow"></div>
+                        <p class="text-xs text-slate-400 mb-3">經濟象限圖 — 景氣 vs 通膨</p>
+                        <canvas id="regimeRadarChart" style="max-height:300px"></canvas>
+                    </div>
+                    <!-- Regime Timeline -->
+                    <div class="metric-card">
+                        <div class="glow"></div>
+                        <p class="text-xs text-slate-400 mb-3">歷史經濟階段時間軸</p>
+                        <canvas id="regimeTimelineChart" style="max-height:300px"></canvas>
+                    </div>
+                </div>
+                <!-- Indicator Matrix -->
+                <div class="metric-card">
+                    <div class="glow"></div>
+                    <p class="text-xs text-slate-400 mb-3">關鍵指標矩陣 — 當前讀數 vs 歷史分位</p>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3" id="indicatorMatrix"></div>
+                </div>
+            </div>
+
+            <!-- ==================== PAGE: Alerts ==================== -->
+            <div class="page" id="page-alerts">
+                <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                    <div class="section-title mb-0"><i data-lucide="siren" class="w-4 h-4"></i>警示管理 Alert Management
+                    </div>
+                    <button
+                        class="flex items-center gap-1.5 bg-primary hover:bg-primary-light text-white text-xs px-4 py-2 rounded-lg transition"
+                        onclick="openAlertRuleModal()">
+                        <i data-lucide="plus" class="w-3.5 h-3.5"></i>新增規則
+                    </button>
+                </div>
+
+                <!-- Alert Tabs -->
+                <div class="flex gap-2 mb-4">
+                    <div class="tab-pill active" onclick="switchAlertTab('rules',this)">警示規則</div>
+                    <div class="tab-pill" onclick="switchAlertTab('log',this)">警示紀錄</div>
+                    <div class="tab-pill" onclick="switchAlertTab('stats',this)">統計分析</div>
+                </div>
+
+                <!-- Rules -->
+                <div id="alertTab-rules">
+                    <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3" id="alertRulesGrid"></div>
+                </div>
+                <!-- Log -->
+                <div id="alertTab-log" style="display:none">
+                    <div class="metric-card">
+                        <div class="flex items-center justify-between mb-3">
+                            <p class="text-xs text-slate-400">最近 30 天警示紀錄</p>
+                            <button class="text-xs text-primary-light hover:underline"
+                                onclick="clearAlertLog()">清除全部</button>
+                        </div>
+                        <div class="space-y-2" id="alertLog"></div>
+                    </div>
+                </div>
+                <!-- Stats -->
+                <div id="alertTab-stats" style="display:none">
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div class="metric-card" style="min-height:280px">
+                            <div class="glow"></div>
+                            <p class="text-xs text-slate-400 mb-3">警示次數趨勢（近 7 天）</p>
+                            <canvas id="alertTrendChart"></canvas>
+                        </div>
+                        <div class="metric-card" style="min-height:280px">
+                            <div class="glow"></div>
+                            <p class="text-xs text-slate-400 mb-3">警示等級分佈</p>
+                            <canvas id="alertDistChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== PAGE: Calendar ==================== -->
+            <div class="page" id="page-calendar">
+                <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                    <div class="section-title mb-0"><i data-lucide="calendar-days" class="w-4 h-4"></i>財經事件日曆</div>
+                    <div class="flex gap-2 items-center">
+                        <button class="p-1.5 hover:bg-slate-700 rounded" onclick="changeCalMonth(-1)"><i
+                                data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                        <span class="font-mono text-sm" id="calMonthLabel">2026 年 5 月</span>
+                        <button class="p-1.5 hover:bg-slate-700 rounded" onclick="changeCalMonth(1)"><i
+                                data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                    </div>
+                </div>
+                <!-- Filter -->
+                <div class="flex flex-wrap gap-2 mb-4" id="calFilterTags"></div>
+                <!-- Calendar Grid -->
+                <div class="metric-card overflow-x-auto">
+                    <div class="glow"></div>
+                    <div
+                        class="cal-row text-[11px] text-slate-500 font-semibold uppercase tracking-wider border-b border-slate-600">
+                        <span>日期</span><span>事件</span><span class="text-right">預期</span><span
+                            class="text-right">前值</span><span class="text-right">實際</span><span
+                            class="text-center">重要性</span>
+                    </div>
+                    <div id="calendarBody"></div>
+                </div>
+            </div>
+
+            <!-- ==================== PAGE: Portfolio ==================== -->
+            <div class="page" id="page-portfolio">
+                <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                    <div class="section-title mb-0"><i data-lucide="pie-chart" class="w-4 h-4"></i>資產配置管理</div>
+                    <button
+                        class="flex items-center gap-1.5 bg-primary hover:bg-primary-light text-white text-xs px-4 py-2 rounded-lg transition"
+                        onclick="openPortfolioModal()">
+                        <i data-lucide="plus" class="w-3.5 h-3.5"></i>新增資產
+                    </button>
+                </div>
+                <div class="grid gap-4 lg:grid-cols-3 mb-6">
+                    <!-- Doughnut -->
+                    <div class="metric-card flex flex-col items-center justify-center" style="min-height:340px">
+                        <div class="glow"></div>
+                        <p class="text-xs text-slate-400 mb-2">實際配置比例</p>
+                        <canvas id="portfolioChart" style="max-height:280px"></canvas>
+                    </div>
+                    <!-- Target vs Actual Bar -->
+                    <div class="metric-card" style="min-height:340px">
+                        <div class="glow"></div>
+                        <p class="text-xs text-slate-400 mb-2">目標 vs 實際</p>
+                        <canvas id="portfolioBarChart" style="max-height:280px"></canvas>
+                    </div>
+                    <!-- Summary -->
+                    <div class="metric-card">
+                        <div class="glow"></div>
+                        <p class="text-xs text-slate-400 mb-3">配置摘要</p>
+                        <div class="space-y-3" id="portfolioSummary"></div>
+                        <div class="mt-4 p-3 bg-slate-800 rounded-lg">
+                            <p class="text-xs text-slate-400 mb-1">再平衡建議</p>
+                            <div class="text-sm space-y-1" id="rebalanceAdvice"></div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Allocation Table -->
+                <div class="metric-card">
+                    <div class="glow"></div>
+                    <p class="text-xs text-slate-400 mb-3">資產明細</p>
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-[11px] text-slate-500 uppercase tracking-wider border-b border-slate-600">
+                                <th class="text-left py-2 px-3">資產</th>
+                                <th class="text-right py-2 px-3">目標 %</th>
+                                <th class="text-right py-2 px-3">實際 %</th>
+                                <th class="text-right py-2 px-3">偏離</th>
+                                <th class="text-center py-2 px-3">狀態</th>
+                                <th class="text-center py-2 px-3">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="portfolioTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ==================== PAGE: Settings ==================== -->
+            <div class="page" id="page-settings">
+                <div class="section-title mb-4"><i data-lucide="settings" class="w-4 h-4"></i>系統設定</div>
+                <div class="grid gap-4 lg:grid-cols-2">
+                    <!-- API Keys -->
+                    <div class="metric-card">
+                        <div class="glow"></div>
+                        <p class="text-sm font-medium mb-4 flex items-center gap-2"><i data-lucide="key"
+                                class="w-4 h-4 text-primary-light"></i>API 金鑰管理</p>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="text-xs text-slate-400 mb-1 block">FRED API Key</label>
+                                <div class="flex gap-2">
+                                    <input type="password" id="fredApiKey" value="demo-key-xxxx"
+                                        class="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-primary-light">
+                                    <button class="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs"
+                                        onclick="togglePw('fredApiKey')">顯示</button>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="text-xs text-slate-400 mb-1 block">Yahoo Finance (免費無需 Key)</label>
+                                <input type="text" disabled value="公開 API — 無需金鑰"
+                                    class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-500">
+                            </div>
+                            <div>
+                                <label class="text-xs text-slate-400 mb-1 block">台灣證交所 Open Data (免費)</label>
+                                <input type="text" disabled value="公開 API — 無需金鑰"
+                                    class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-500">
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Notifications -->
+                    <div class="metric-card">
+                        <div class="glow"></div>
+                        <p class="text-sm font-medium mb-4 flex items-center gap-2"><i data-lucide="bell-ring"
+                                class="w-4 h-4 text-primary-light"></i>通知設定</p>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="text-xs text-slate-400 mb-1 block">Microsoft Teams Webhook URL</label>
+                                <input type="text" id="teamsWebhook" placeholder="https://xxxxx.webhook.office.com/..."
+                                    class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-primary-light">
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm">前端 Toast 通知</span>
+                                <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm">Teams 推送通知</span>
+                                <div class="toggle" onclick="this.classList.toggle('on')"></div>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm">僅推送 L2 以上警示</span>
+                                <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Refresh -->
+                    <div class="metric-card">
+                        <div class="glow"></div>
+                        <p class="text-sm font-medium mb-4 flex items-center gap-2"><i data-lucide="timer"
+                                class="w-4 h-4 text-primary-light"></i>資料更新</p>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="text-xs text-slate-400 mb-1 block">自動刷新間隔</label>
+                                <select id="refreshInterval"
+                                    class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-primary-light"
+                                    onchange="setRefreshInterval(this.value)">
+                                    <option value="15">15 秒</option>
+                                    <option value="30" selected>30 秒</option>
+                                    <option value="60">60 秒</option>
+                                    <option value="300">5 分鐘</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-xs text-slate-400 mb-1 block">快取時間（分鐘）</label>
+                                <input type="number" value="5" min="1" max="60"
+                                    class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-primary-light">
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm">盤後停止更新</span>
+                                <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Display -->
+                    <div class="metric-card">
+                        <div class="glow"></div>
+                        <p class="text-sm font-medium mb-4 flex items-center gap-2"><i data-lucide="monitor"
+                                class="w-4 h-4 text-primary-light"></i>顯示設定</p>
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm">Dark Mode</span>
+                                <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm">Sparkline 趨勢圖</span>
+                                <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm">密集模式（大螢幕）</span>
+                                <div class="toggle" onclick="this.classList.toggle('on')"></div>
+                            </div>
+                            <div>
+                                <label class="text-xs text-slate-400 mb-1 block">預設指標分類</label>
+                                <select
+                                    class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-primary-light">
+                                    <option>全部</option>
+                                    <option>僅股市 + 商品</option>
+                                    <option>僅總經指標</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Save -->
+                <div class="flex justify-end mt-4 gap-3">
+                    <button
+                        class="px-5 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition">重置預設</button>
+                    <button class="px-5 py-2 bg-primary hover:bg-primary-light text-white rounded-lg text-sm transition"
+                        onclick="showToast('success','✅ 設定已儲存')">儲存設定</button>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Footer -->
+        <footer
+            class="border-t border-slate-700/40 px-4 py-3 flex flex-wrap items-center justify-between text-[11px] text-slate-500">
+            <span>© 2026 MyCar Dashboard · Built by Jia-Ze Hsu</span>
+            <span>FRED API · Yahoo Finance · TWSE Open Data</span>
+        </footer>
+    </div>
+
+    <!-- ================================ MODALS ================================ -->
+
+    <!-- Metric Detail Modal -->
+    <div class="modal-overlay" id="metricDetailModal" onclick="if(event.target===this)closeModal('metricDetailModal')">
+        <div class="modal-box p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-semibold" id="modalMetricName">—</h3>
+                <button onclick="closeModal('metricDetailModal')" class="p-1 hover:bg-slate-600 rounded"><i
+                        data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="grid grid-cols-3 gap-3 mb-4" id="modalMetricKpis"></div>
+            <div class="mb-4"><canvas id="modalDetailChart" class="detail-chart-canvas"></canvas></div>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-slate-800 rounded-lg p-3">
+                    <p class="text-[10px] text-slate-500 mb-1">門檻設定</p>
+                    <div class="flex gap-2">
+                        <div><label class="text-[10px] text-slate-500">上限</label><input type="text"
+                                class="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs font-mono mt-0.5"
+                                id="modalThHigh"></div>
+                        <div><label class="text-[10px] text-slate-500">下限</label><input type="text"
+                                class="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs font-mono mt-0.5"
+                                id="modalThLow"></div>
+                    </div>
+                </div>
+                <div class="bg-slate-800 rounded-lg p-3">
+                    <p class="text-[10px] text-slate-500 mb-1">指標資訊</p>
+                    <p class="text-xs text-slate-300" id="modalMetricInfo">—</p>
+                </div>
+            </div>
+            <div class="flex justify-end mt-4 gap-2">
+                <button class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs"
+                    onclick="closeModal('metricDetailModal')">關閉</button>
+                <button class="px-4 py-2 bg-primary hover:bg-primary-light text-white rounded-lg text-xs"
+                    onclick="showToast('success','門檻已儲存');closeModal('metricDetailModal')">儲存門檻</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert Rule Modal -->
+    <div class="modal-overlay" id="alertRuleModal" onclick="if(event.target===this)closeModal('alertRuleModal')">
+        <div class="modal-box p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-semibold">新增 / 編輯警示規則</h3>
+                <button onclick="closeModal('alertRuleModal')" class="p-1 hover:bg-slate-600 rounded"><i data-lucide="x"
+                        class="w-5 h-5"></i></button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="text-xs text-slate-400 mb-1 block">規則名稱</label>
+                    <input type="text" id="ruleNameInput" placeholder="e.g. CPI 超標警示"
+                        class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-light">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs text-slate-400 mb-1 block">警示等級</label>
+                        <select id="ruleLevelInput"
+                            class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-primary-light">
+                            <option value="L1">L1 — 數值門檻</option>
+                            <option value="L2">L2 — 變動率</option>
+                            <option value="L3">L3 — 組合條件</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 mb-1 block">監控指標</label>
+                        <select id="ruleMetricInput"
+                            class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-primary-light"></select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="text-xs text-slate-400 mb-1 block">條件</label>
+                        <select id="ruleCondInput"
+                            class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-primary-light">
+                            <option value="gt">大於 &gt;</option>
+                            <option value="lt">小於 &lt;</option>
+                            <option value="gte">大於等於 ≥</option>
+                            <option value="lte">小於等於 ≤</option>
+                            <option value="pct_up">漲幅 % ≥</option>
+                            <option value="pct_down">跌幅 % ≥</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 mb-1 block">門檻值</label>
+                        <input type="number" step="0.01" id="ruleThreshInput"
+                            class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-primary-light">
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 mb-1 block">嚴重度</label>
+                        <select id="ruleSevInput"
+                            class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-primary-light">
+                            <option value="danger">🔴 危險</option>
+                            <option value="warn">🟡 警告</option>
+                            <option value="info">🔵 資訊</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-sm">啟用 Teams 推送</span>
+                    <div class="toggle on" id="ruleTeamsToggle" onclick="this.classList.toggle('on')"></div>
+                </div>
+            </div>
+            <div class="flex justify-end mt-5 gap-2">
+                <button class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs"
+                    onclick="closeModal('alertRuleModal')">取消</button>
+                <button class="px-4 py-2 bg-primary hover:bg-primary-light text-white rounded-lg text-xs"
+                    onclick="saveAlertRule()">儲存規則</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Portfolio Add Modal -->
+    <div class="modal-overlay" id="portfolioModal" onclick="if(event.target===this)closeModal('portfolioModal')">
+        <div class="modal-box p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-semibold">新增 / 編輯資產</h3>
+                <button onclick="closeModal('portfolioModal')" class="p-1 hover:bg-slate-600 rounded"><i data-lucide="x"
+                        class="w-5 h-5"></i></button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="text-xs text-slate-400 mb-1 block">資產名稱</label>
+                    <input type="text" id="assetNameInput" placeholder="e.g. 台股 ETF (0050)"
+                        class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-light">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs text-slate-400 mb-1 block">目標比例 %</label>
+                        <input type="number" id="assetTargetInput" min="0" max="100"
+                            class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-primary-light">
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 mb-1 block">實際比例 %</label>
+                        <input type="number" id="assetActualInput" min="0" max="100"
+                            class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-primary-light">
+                    </div>
+                </div>
+                <div>
+                    <label class="text-xs text-slate-400 mb-1 block">顏色</label>
+                    <div class="flex gap-2" id="colorPicker"></div>
+                </div>
+            </div>
+            <div class="flex justify-end mt-5 gap-2">
+                <button class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs"
+                    onclick="closeModal('portfolioModal')">取消</button>
+                <button class="px-4 py-2 bg-primary hover:bg-primary-light text-white rounded-lg text-xs"
+                    onclick="savePortfolioItem()">儲存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fullscreen Btn -->
+    <button class="fs-btn p-3 bg-surface border border-slate-600 rounded-full hover:bg-slate-700 transition"
+        onclick="toggleFS()">
+        <i data-lucide="maximize" class="w-5 h-5"></i>
+    </button>
+
+    <!-- ================================ JAVASCRIPT ================================ -->
+
+    <script src="https://code.jquery.com/jquery-3.6.0.js"></script>
+    <script src="../assets/js/monitor_data_loader.js"></script>
+    <script src="../assets/js/monitor_new.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="description" content="Jazzer Life - Sign In" />
+    <meta name="author" content="Jazzer" />
+    <title>Sign In · Jazzer Life</title>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css"
+        integrity="sha384-xOolHFLEh07PJGoPkLv1IbcEPTNtaed2xpHsD9ESMhqIYd0nLMwNLD69Npy4HI+N" crossorigin="anonymous" />
+
+    <link href="../assets/css/jumbotron.css" rel="stylesheet" />
+    <link href="../assets/css/signin.css" rel="stylesheet" />
+
+    <style>
+        .logo-img {
+            width: auto;
+            /* 讓 LOGO 比例自動縮放 */
+            height: 200px;
+            /* 稍微放大一點點，看起來更大氣 */
+            max-width: 100%;
+            /* 確保手機版不會爆框 */
+
+            /* 加入微弱的陰影，讓 LOGO 在白底卡片上更有立體感 */
+            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15));
+
+            /* 確保 LOGO 水平置中 */
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+
+            /* 增加轉場動畫效果，滑鼠滑過時會稍微放大 */
+            transition: transform 0.3s ease;
+        }
+
+        .logo-img:hover {
+            transform: scale(1.05);
+        }
+
+        :root {
+            --primary-dark: #1a2a3a;
+            --accent-color: #27ae60;
+        }
+
+        body {
+            display: flex;
+            align-items: center;
+            padding-top: 40px;
+            padding-bottom: 40px;
+            background: linear-gradient(150deg, #1a2a3a 0%, #2c3e50 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', 'Microsoft JhengHei', sans-serif;
+        }
+
+        /* 導航列美化 (同步主頁風格) */
+        .navbar {
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(12px);
+            background-color: rgba(52, 58, 64, 0.95) !important;
+        }
+
+        @media (max-width: 767.98px) {
+            .navbar-collapse {
+                background: rgba(40, 45, 50, 0.98);
+                margin-top: 10px;
+                padding: 15px;
+                border-radius: 12px;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+            }
+        }
+
+        /* 登入卡片 */
+        .form-signin {
+            width: 100%;
+            max-width: 400px;
+            padding: 30px;
+            margin: auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+        }
+
+        .form-signin img {
+            filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.1));
+        }
+
+        .form-signin h1 {
+            font-weight: 700;
+            color: var(--primary-dark);
+            margin-bottom: 1.5rem;
+        }
+
+        .form-control {
+            position: relative;
+            box-sizing: border-box;
+            height: auto;
+            padding: 12px 15px;
+            font-size: 16px;
+            border-radius: 10px !important;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            transition: all 0.3s;
+        }
+
+        .form-control:focus {
+            z-index: 2;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 0.2rem rgba(39, 174, 96, 0.25);
+        }
+
+        /* 登入按鈕 */
+        .btn-signin {
+            background-color: var(--primary-dark);
+            border: none;
+            padding: 12px;
+            border-radius: 10px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            transition: 0.3s;
+            color: white;
+        }
+
+        .btn-signin:hover {
+            background-color: #000;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            color: white;
+        }
+
+        .checkbox {
+            font-weight: 400;
+            color: #666;
+            text-align: left;
+        }
+
+        .footer-text {
+            color: rgba(255, 255, 255, 0.5);
+            margin-top: 2rem;
+        }
+    </style>
+</head>
+
+<body class="text-center">
+    <nav class="navbar navbar-expand-md navbar-dark fixed-top">
+        <div class="container">
+            <a class="navbar-brand font-weight-bold" href="index.html">JAZZER LIFE</a>
+            <button class="navbar-toggler border-0" type="button" data-toggle="collapse"
+                data-target="#navbarsExampleDefault">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarsExampleDefault">
+                <ul class="navbar-nav mr-auto text-left">
+                    <li class="nav-item">
+                        <a class="nav-link" href="finance.html">FinanceTracker</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="car.html">AutoCare Manager</a>
+                    </li>
+                </ul>
+                <div class="mt-3 mt-md-0">
+                    <a class="btn btn-outline-success btn-block px-4" href="regis.html"
+                        style="border-radius: 8px;">Register</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <form class="form-signin">
+            <img class="logo-img" src="../assets/image/jazzerlife_logo_noback.png" alt="Jazzer Life Logo" />
+            <h1 class="h3 font-weight-normal">Welcome Back</h1>
+
+            <div class="text-left mb-2 ml-1"><small class="text-muted">Account / Email</small></div>
+            <input type="email" id="account" class="form-control" placeholder="example@mail.com" required autofocus />
+
+            <div class="text-left mb-2 ml-1"><small class="text-muted">Password</small></div>
+            <input type="password" id="password" class="form-control" placeholder="••••••••" required />
+
+            <div class="checkbox mb-3">
+                <label>
+                    <input type="checkbox" value="remember-me" /> Remember me
+                </label>
+            </div>
+
+            <button class="btn btn-lg btn-signin btn-block" type="button" onclick="clickSubmit()">
+                Sign in
+            </button>
+
+            <div class="mt-4">
+                <small class="text-muted">Don't have an account? <a href="regis.html" class="text-success">Register
+                        here</a></small>
+            </div>
+        </form>
+
+        <p class="footer-text small">&copy; Jazzer Workspace 2026</p>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"
+        crossorigin="anonymous"></script>
+    <script src="../assets/ajax/Ajax_loader-init.js"></script>
+    <script src="../assets/js/common.js"></script>
+    <script src="../assets/js/signin.js"></script>
+</body>
+
+</html>

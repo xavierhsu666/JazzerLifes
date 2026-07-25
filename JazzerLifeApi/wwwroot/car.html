@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+
+  <meta name="description" content="" />
+
+  <meta name="author" content="Jazzer" />
+
+  <meta name="generator" content="Jekyll v4.1.1" />
+
+  <title>Jazzer Life.</title>
+
+  <link rel="canonical" href="https://getbootstrap.com/docs/4.5/examples/dashboard/" />
+
+  <!-- Bootstrap core CSS -->
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css"
+    integrity="sha384-xOolHFLEh07PJGoPkLv1IbcEPTNtaed2xpHsD9ESMhqIYd0nLMwNLD69Npy4HI+N" crossorigin="anonymous" />
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jexcel/4.6.1/jexcel.css"
+    integrity="sha512-0bbZhbex+69JOTnHNCYlUFQY3Td5bVRJAnAnJx7wiqbt1aWAvjcifiARBG7devNOkunj2TtkWc7CzB1QLTffsQ=="
+    crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jsuites/5.8.3/jsuites.css"
+    integrity="sha512-mPvDucEXXiuj5mqckeKmucvSl58S4vAIzTGQ58wJtM72I3QQ/6EI7q8AZ0HlThcWK2u7Y2TllrdZcuwQ8c+IzQ=="
+    crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+  <!-- Tabler Icons（導航用） -->
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.44.0/iconfont/tabler-icons.min.css" />
+
+  <!-- Custom styles for this template -->
+
+  <link href="../assets/css/dashboard.css" rel="stylesheet" />
+
+  <!-- AutoCare 現代化主題（需最後載入以覆寫 Bootstrap / dashboard） -->
+
+  <link rel="stylesheet" href="../assets/css/car.css" />
+
+  <!-- 響應式導航佈局（桌面側邊欄 / 手機底部導覽列） -->
+
+  <link rel="stylesheet" href="../assets/css/car-layout.css" />
+</head>
+
+<body>
+  <div class="app-shell">
+    <nav class="app-sidebar">
+      <div class="app-sidebar-brand">Jazzer Life</div>
+      <div class="app-nav-item active" data-view="dashboard" onclick="switchSection(this)">
+        <i class="ti ti-layout-dashboard" aria-hidden="true"></i><span>Dashboard</span>
+      </div>
+      <div class="app-nav-item" data-view="oilrecord" onclick="switchSection(this)">
+        <i class="ti ti-droplet" aria-hidden="true"></i><span>油耗紀錄</span>
+      </div>
+      <div class="app-nav-item" data-view="vehicles" onclick="switchSection(this)">
+        <i class="ti ti-car" aria-hidden="true"></i><span>車輛</span>
+      </div>
+      <div class="app-nav-item" data-view="partsinspecttable" onclick="switchSection(this)">
+        <i class="ti ti-clock" aria-hidden="true"></i><span>保養週期</span>
+      </div>
+      <div class="app-nav-item" data-view="maintaintable" onclick="switchSection(this)">
+        <i class="ti ti-tool" aria-hidden="true"></i><span>保養紀錄</span>
+      </div>
+      <div class="app-nav-item" id="navSign" onclick="handleSignOut()">
+        <i class="ti ti-logout" aria-hidden="true"></i><span>LogOut</span>
+      </div>
+    </nav>
+
+    <main class="app-main">
+      <select class="form-control app-vehicle-select" id="vehiclesSelect" onchange="onVehicleChange()"></select>
+
+      <section id="dashboard" class="">
+        <h1 class="h1" id="head">Dashboard</h1>
+
+        <!-- KPI 摘要卡片 -->
+        <div class="oil-kpi-row">
+          <div class="oil-kpi-card">
+            <div class="oil-kpi-label">目前總里程</div>
+            <div class="oil-kpi-value" id="dashKpiOdo">-</div>
+          </div>
+          <div class="oil-kpi-card">
+            <div class="oil-kpi-label">本月加油花費</div>
+            <div class="oil-kpi-value" id="dashKpiMonthCost">-</div>
+          </div>
+          <div class="oil-kpi-card">
+            <div class="oil-kpi-label">平均油耗</div>
+            <div class="oil-kpi-value" id="dashKpiAvgEff">-</div>
+          </div>
+          <div class="oil-kpi-card">
+            <div class="oil-kpi-label">每公里成本</div>
+            <div class="oil-kpi-value" id="dashKpiCostPerKm">-</div>
+          </div>
+          <div class="oil-kpi-card">
+            <div class="oil-kpi-label">待保養項目</div>
+            <div class="oil-kpi-value" id="dashKpiDueCount">-</div>
+          </div>
+        </div>
+
+        <!-- 保養提醒 + 保養花費分類 -->
+        <div class="dash-grid-2">
+          <div class="dash-panel">
+            <h2 class="h2">保養提醒</h2>
+            <div id="dashReminders" class="dash-reminders"></div>
+          </div>
+          <div class="dash-panel">
+            <div class="dash-panel-head">
+              <h2 class="h2">保養花費分類</h2>
+              <select id="dashCatMonth" class="form-select oil-dim-select" onchange="onDashCatMonthChange()">
+                <option value="">全部月份</option>
+              </select>
+            </div>
+            <div id="dashCategoryChart" class="dash-chart"></div>
+          </div>
+        </div>
+
+        <!-- 油耗趨勢 -->
+        <div class="dash-panel">
+          <h2 class="h2">油耗趨勢</h2>
+          <div id="chart_area"></div>
+        </div>
+
+        <!-- 每月養車成本 -->
+        <div class="dash-panel">
+          <h2 class="h2">每月養車成本（加油 + 保養）</h2>
+          <div id="dashCostChart" class="dash-chart"></div>
+        </div>
+
+        <!-- 最近活動 -->
+        <div class="dash-grid-2">
+          <div class="dash-panel">
+            <h2 class="h2">最近加油</h2>
+            <div id="dashRecentFuel" class="dash-recent"></div>
+          </div>
+          <div class="dash-panel">
+            <h2 class="h2">最近保養</h2>
+            <div id="dashRecentMaint" class="dash-recent"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="oilrecord" class="d-none">
+        <h2>Oil Record</h2>
+
+        <!-- KPI 摘要卡片 -->
+        <div class="oil-kpi-row">
+          <div class="oil-kpi-card">
+            <div class="oil-kpi-label">平均油耗</div>
+            <div class="oil-kpi-value" id="oilKpiAvgEff">-</div>
+          </div>
+          <div class="oil-kpi-card">
+            <div class="oil-kpi-label">總花費</div>
+            <div class="oil-kpi-value" id="oilKpiTotalCost">-</div>
+          </div>
+          <div class="oil-kpi-card">
+            <div class="oil-kpi-label">每公里成本</div>
+            <div class="oil-kpi-value" id="oilKpiCostPerKm">-</div>
+          </div>
+          <div class="oil-kpi-card">
+            <div class="oil-kpi-label">總里程</div>
+            <div class="oil-kpi-value" id="oilKpiDistance">-</div>
+          </div>
+          <div class="oil-kpi-card">
+            <div class="oil-kpi-label">紀錄筆數</div>
+            <div class="oil-kpi-value" id="oilKpiCount">-</div>
+          </div>
+        </div>
+
+        <!-- 工具列：趨勢維度 + 新增 -->
+        <div class="oil-toolbar">
+          <label class="oil-toolbar-label" for="oilDimension">趨勢維度</label>
+          <select id="oilDimension" class="form-select oil-dim-select" onchange="renderOilChart(OilData, this.value)">
+            <option value="week">週</option>
+            <option value="month" selected>月</option>
+            <option value="year">年</option>
+          </select>
+          <button type="button" class="btn btn-primary" onclick="dropdown_oilRecord(this, 'r_table')">+
+            新增油耗紀錄</button>
+        </div>
+
+        <!-- 新增油耗表單 -->
+        <div id="r_table" class="d-none">
+          <div class="oil-form-card">
+            <div class="oil-form-grid">
+              <div class="oil-field">
+                <label for="oilForm_date">日期</label>
+                <input type="date" id="oilForm_date" class="form-control" onchange="updateOilPreview()" />
+              </div>
+              <div class="oil-field">
+                <label for="oilForm_type">油品</label>
+                <select id="oilForm_type" class="form-control" onchange="loadOilUnitPrice()">
+                  <option value="" selected>選擇</option>
+                  <option value="92">92</option>
+                  <option value="95">95</option>
+                  <option value="98">98</option>
+                </select>
+              </div>
+              <div class="oil-field">
+                <label for="oilForm_odometer">里程數 (km)</label>
+                <input type="number" id="oilForm_odometer" class="form-control" placeholder="目前總里程"
+                  oninput="updateOilPreview()" />
+              </div>
+              <div class="oil-field">
+                <label for="oilForm_fuel">加油量 (L)</label>
+                <input type="number" id="oilForm_fuel" class="form-control" step="0.01" oninput="onOilFuelInput()" />
+              </div>
+              <div class="oil-field">
+                <label for="oilForm_cost">每公升單價 (NT$/L)</label>
+                <input type="number" id="oilForm_cost" class="form-control" step="0.01"
+                  oninput="updateOilPreview()" />
+              </div>
+            </div>
+            <div class="oil-preview">
+              <span>參考單價：<b id="oilForm_unitPrice">$0/L</b></span>
+              <span>上次里程：<b id="oilForm_lastOdo">0</b></span>
+              <span>行駛距離：<b id="oilForm_distance">0 km</b></span>
+              <span>總花費：<b id="oilForm_totalCost">$0</b></span>
+              <span>油耗：<b id="oilForm_efficiency">0 km/L</b></span>
+              <span>每公里成本：<b id="oilForm_costPerKm">$0/km</b></span>
+            </div>
+            <div class="car-toolbar-center">
+              <button type="button" class="btn btn-primary" onclick="submitOilRecord()">送出</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 油耗趨勢圖 -->
+        <div class="table-responsive">
+          <div id="oilTrendChart"></div>
+        </div>
+
+        <!-- 明細表 -->
+        <div class="table-responsive">
+          <div id="c_table" class="ag-theme-quartz-dark car-grid"></div>
+        </div>
+      </section>
+
+      <section id="vehicles" class="d-none">
+        <h2>Vehicles</h2>
+        <input type="button" class="btn btn-dark mb-3" value="+" onclick="add_Vihecle()" />
+        <div class="table-responsive">
+          <table class="table" id="vehiclesTable">
+            <thead>
+              <tr>
+                <th scope="col">#</th>
+
+                <th scope="col">MAKE</th>
+
+                <th scope="col">MODEL</th>
+
+                <th scope="col">YEAR</th>
+
+                <th scope="col">PLATE</th>
+
+                <th scope="col">EDIT</th>
+              </tr>
+            </thead>
+
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div id="Vehicle_edit_area" class="d-none">
+          <table class="table table-bordered justify-content-center align-items-center car-form-table">
+            <tbody>
+              <tr>
+                <td>VID</td>
+
+                <td>
+                  <input type="text" name="" id="edit_vID" value="" class="input-group form-control" readonly />
+                </td>
+              </tr>
+
+              <tr>
+                <td>MAKE</td>
+
+                <td colspan="2">
+                  <input type="text" name="" id="edit_vMake" value="" class="input-group form-control" />
+                </td>
+              </tr>
+
+              <tr>
+                <td>MODEL</td>
+
+                <td colspan="2">
+                  <input type="text" name="" id="edit_vModel" value="" class="input-group form-control" />
+                </td>
+              </tr>
+
+              <tr>
+                <td>YEAR</td>
+
+                <td colspan="2">
+                  <input type="text" name="" id="edit_vYear" value="" class="input-group form-control" />
+                </td>
+              </tr>
+
+              <tr>
+                <td>PLATE</td>
+
+                <td colspan="2">
+                  <input type="text" name="" id="edit_vPlate" value="" class="input-group form-control" />
+                </td>
+              </tr>
+
+              <tr>
+                <td colspan="3">
+                  <input type="button" class="btn btn-primary w-50" value="EDIT" onclick="upd_Vehicle()" /><input
+                    type="button" class="btn btn-danger w-50" value="DELETE" onclick="del_Vehicle()" />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="partsinspecttable" class="d-none">
+        <h2>保養週期設定</h2>
+
+        <div class="oil-toolbar">
+          <button type="button" class="btn btn-primary" onclick="openNewCycleForm()">+ 新增週期</button>
+        </div>
+
+        <div id="cycleForm" class="d-none">
+          <div class="oil-form-card">
+            <div class="oil-form-grid">
+              <div class="oil-field">
+                <label for="cycleForm_part">零件名稱</label>
+                <input type="text" id="cycleForm_part" class="form-control" placeholder="例如：機油" />
+              </div>
+              <div class="oil-field">
+                <label for="cycleForm_km">里程週期 (km)</label>
+                <input type="number" id="cycleForm_km" class="form-control" placeholder="例如：5000" />
+              </div>
+              <div class="oil-field">
+                <label for="cycleForm_day">時間週期 (天)</label>
+                <input type="number" id="cycleForm_day" class="form-control" placeholder="例如：180" />
+              </div>
+            </div>
+            <div class="car-toolbar-center">
+              <button type="button" id="cycleSubmitBtn" class="btn btn-primary" onclick="submitNewCycle()">送出</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="dash-panel">
+          <h2 class="h2">現有保養週期</h2>
+          <div id="cycleGrid" class="ag-theme-quartz-dark car-grid"></div>
+        </div>
+
+        <div class="dash-panel">
+          <h2 class="h2">建議保養週期（依實際紀錄推算）</h2>
+          <div id="recommendGrid" class="ag-theme-quartz-dark car-grid"></div>
+        </div>
+      </section>
+
+      <section id="maintaintable" class="d-none">
+        <h2>保養紀錄</h2>
+
+        <div class="oil-kpi-row">
+          <div class="oil-kpi-card">
+            <div class="oil-kpi-label">保養次數</div>
+            <div class="oil-kpi-value" id="maintKpiCount">-</div>
+          </div>
+          <div class="oil-kpi-card">
+            <div class="oil-kpi-label">總保養花費</div>
+            <div class="oil-kpi-value" id="maintKpiCost">-</div>
+          </div>
+          <div class="oil-kpi-card">
+            <div class="oil-kpi-label">最近保養日</div>
+            <div class="oil-kpi-value" id="maintKpiLast">-</div>
+          </div>
+        </div>
+
+        <div class="oil-toolbar">
+          <button type="button" class="btn btn-primary" onclick="show_toggleEle('maintForm')">+ 新增保養</button>
+        </div>
+
+        <div id="maintForm" class="d-none">
+          <div class="oil-form-card">
+            <div class="oil-form-grid">
+              <div class="oil-field">
+                <label for="maintForm_date">日期</label>
+                <input type="date" id="maintForm_date" class="form-control" />
+              </div>
+              <div class="oil-field">
+                <label for="maintForm_part">零件</label>
+                <input type="text" id="maintForm_part" class="form-control" list="maintPartList"
+                  placeholder="輸入或選擇" />
+                <datalist id="maintPartList"></datalist>
+              </div>
+              <div class="oil-field">
+                <label for="maintForm_odo">里程 (km)</label>
+                <input type="number" id="maintForm_odo" class="form-control" />
+              </div>
+              <div class="oil-field">
+                <label for="maintForm_cost">花費 (NT$)</label>
+                <input type="number" id="maintForm_cost" class="form-control" step="0.01" />
+              </div>
+              <div class="oil-field">
+                <label for="maintForm_store">店家</label>
+                <input type="text" id="maintForm_store" class="form-control" />
+              </div>
+              <div class="oil-field">
+                <label for="maintForm_note">備註</label>
+                <input type="text" id="maintForm_note" class="form-control" />
+              </div>
+            </div>
+            <div class="car-toolbar-center">
+              <button type="button" class="btn btn-primary" onclick="submitMaintenance()">送出</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="dash-panel">
+          <h2 class="h2">保養紀錄</h2>
+          <div id="maintGrid" class="ag-theme-quartz-dark car-grid"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- 手機版底部導覽列 -->
+  <div class="app-bottom-nav">
+    <div class="app-bottom-nav-item active" data-view="dashboard" onclick="switchSection(this)">
+      <i class="ti ti-layout-dashboard" aria-hidden="true"></i>Dashboard
+    </div>
+    <div class="app-bottom-nav-item" data-view="oilrecord" onclick="switchSection(this)">
+      <i class="ti ti-droplet" aria-hidden="true"></i>油耗
+    </div>
+    <div class="app-bottom-nav-item" data-view="vehicles" onclick="switchSection(this)">
+      <i class="ti ti-car" aria-hidden="true"></i>車輛
+    </div>
+    <div class="app-bottom-nav-item" data-view="partsinspecttable" onclick="switchSection(this)">
+      <i class="ti ti-clock" aria-hidden="true"></i>週期
+    </div>
+    <div class="app-bottom-nav-item" data-view="maintaintable" onclick="switchSection(this)">
+      <i class="ti ti-tool" aria-hidden="true"></i>保養
+    </div>
+  </div>
+
+  <!-- ! --------------------------SCRIPTS BELOW ----------------------------------------->
+
+  <!-- ! JQuery ----------------------------------------->
+
+  <script src="https://code.jquery.com/jquery-3.7.1.js" integrity="sha256-eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4="
+    crossorigin="anonymous"></script>
+
+  <!-- ! Others ----------------------------------------->
+
+  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/feather-icons/4.9.0/feather.min.js"></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.3/Chart.min.js"></script>
+
+  <!-- ! Highcharts（Dashboard / Oil Record 圖表需要） ----------------------------------------->
+
+  <script src="https://code.highcharts.com/highcharts.js"></script>
+
+  <script src="https://code.highcharts.com/modules/exporting.js"></script>
+
+  <!-- ! JExcel ----------------------------------------->
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jexcel/4.6.1/jexcel.min.js"
+    integrity="sha512-TFb0BBBoMRJZ4nFqwtuJv7E+eAttxt0LaKobnfH9U79r2AM7qxBpi7hO7O+XlSxGP9NbI1F8UBSowK9dVmQd2Q=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsuites/5.8.3/jsuites.js"
+    integrity="sha512-6oc9IpokVJ2Qwjiwq1q7tBPvZ4tmudmKgToctKrkleI20YO5bbPrgC0vb2ElG5Pn3SrOO2GvbrlBqXvvKCgv0g=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+  <!-- ! Bootstrap ----------------------------------------->
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-Fy6S3B9q64WdZWQUiU+q4/2Lc9npb8tCaSX9FK7E8HnRr0Jz8D6OP9dO5Vg3Q9ct"
+    crossorigin="anonymous"></script>
+
+  <!-- ! Ajax ----------------------------------------->
+
+  <script src="../assets/ajax/Ajax_loader-init.js"></script>
+
+  <!-- ! Page ----------------------------------------->
+
+  <script src="../assets/js/jztool.js"></script>
+  <script src="../assets/js/aggrid.js"></script>
+
+  <script src="../assets/js/common.js"></script>
+
+  <script src="../assets/js/car.js"></script>
+</body>
+
+</html>

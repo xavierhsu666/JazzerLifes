@@ -1,0 +1,7 @@
+# 排除 Visual Studio 產生的暫存與快取資料夾
+.vs/
+*.vsidx
+bin/
+obj/
+*.user
+*.suo

@@ -1,0 +1,12 @@
+.headBarSeclect {
+  height: auto;
+}
+tr:hover .hover-button {
+  display: block;
+}
+.nav-link:hover {
+  cursor: pointer;
+}
+#parts_table tr td {
+  vertical-align: middle;
+}
