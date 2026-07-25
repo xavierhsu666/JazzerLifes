@@ -5,3 +5,6 @@ bin/
 obj/
 *.user
 *.suo
+JazzerLifeApi/appsettings.json
+
+JazzerLifeApi/appsettings.Development.json
