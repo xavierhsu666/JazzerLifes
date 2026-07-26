@@ -23,6 +23,14 @@ public partial class JazzerLifeContext : DbContext
 
     public virtual DbSet<Detail> Details { get; set; }
 
+    public virtual DbSet<EconAlertLog> EconAlertLogs { get; set; }
+
+    public virtual DbSet<EconAlertRule> EconAlertRules { get; set; }
+
+    public virtual DbSet<EconIndicator> EconIndicators { get; set; }
+
+    public virtual DbSet<EconIndicatorValue> EconIndicatorValues { get; set; }
+
     public virtual DbSet<FuelConsumption> FuelConsumptions { get; set; }
 
     public virtual DbSet<MaintenanceCycle> MaintenanceCycles { get; set; }
@@ -140,6 +148,99 @@ public partial class JazzerLifeContext : DbContext
             entity.Property(e => e.Tag).HasMaxLength(50);
             entity.Property(e => e.UpdatedAt).HasColumnType("datetime");
             entity.Property(e => e.UserId).HasColumnName("UserID");
+        });
+
+        modelBuilder.Entity<EconIndicator>(entity =>
+        {
+            entity.HasKey(e => e.IndicatorId);
+
+            entity.ToTable("EconIndicator", "MACRO");
+
+            entity.HasIndex(e => e.Code, "UQ_EconIndicator_Code").IsUnique();
+
+            entity.Property(e => e.Code).HasMaxLength(50);
+            entity.Property(e => e.Name).HasMaxLength(100);
+            entity.Property(e => e.Country).HasMaxLength(10);
+            entity.Property(e => e.Category).HasMaxLength(50);
+            entity.Property(e => e.Unit).HasMaxLength(20);
+            entity.Property(e => e.Source).HasMaxLength(50);
+            entity.Property(e => e.SourceSeriesId).HasMaxLength(50);
+            entity.Property(e => e.Frequency).HasMaxLength(20);
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+        });
+
+        modelBuilder.Entity<EconIndicatorValue>(entity =>
+        {
+            entity.HasKey(e => e.ValueId);
+
+            entity.ToTable("EconIndicatorValue", "MACRO");
+
+            entity.HasIndex(e => new { e.IndicatorId, e.PeriodDate }, "UQ_EconIndicatorValue_IndicatorPeriod").IsUnique();
+
+            entity.Property(e => e.Value).HasColumnType("decimal(18, 4)");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+
+            entity.HasOne(d => d.Indicator).WithMany(p => p.EconIndicatorValues)
+                .HasForeignKey(d => d.IndicatorId)
+                .HasConstraintName("FK_EconIndicatorValue_Indicator");
+        });
+
+        modelBuilder.Entity<EconAlertRule>(entity =>
+        {
+            entity.HasKey(e => e.RuleId);
+
+            entity.ToTable("EconAlertRule", "MACRO");
+
+            entity.HasIndex(e => e.UserId, "IX_EconAlertRule_UserId");
+
+            entity.Property(e => e.Operator).HasMaxLength(5);
+            entity.Property(e => e.Threshold).HasColumnType("decimal(18, 4)");
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+
+            entity.HasOne(d => d.Indicator).WithMany(p => p.EconAlertRules)
+                .HasForeignKey(d => d.IndicatorId)
+                .HasConstraintName("FK_EconAlertRule_Indicator");
+
+            entity.HasOne(d => d.User).WithMany(p => p.EconAlertRules)
+                .HasForeignKey(d => d.UserId)
+                .HasConstraintName("FK_EconAlertRule_User");
+        });
+
+        modelBuilder.Entity<EconAlertLog>(entity =>
+        {
+            entity.HasKey(e => e.LogId);
+
+            entity.ToTable("EconAlertLog", "MACRO");
+
+            entity.HasIndex(e => e.RuleId, "IX_EconAlertLog_RuleId");
+
+            entity.Property(e => e.Value).HasColumnType("decimal(18, 4)");
+            entity.Property(e => e.Message).HasMaxLength(255);
+            entity.Property(e => e.TriggeredAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+            entity.Property(e => e.IsRead).HasDefaultValue(false);
+
+            entity.HasOne(d => d.Rule).WithMany(p => p.EconAlertLogs)
+                .HasForeignKey(d => d.RuleId)
+                .HasConstraintName("FK_EconAlertLog_Rule");
         });
 
         modelBuilder.Entity<FuelConsumption>(entity =>

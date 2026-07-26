@@ -1,41 +1,58 @@
 // ! -- Global Area ----------------------------------------------------------------------
 
 // ! -- Function Area ----------------------------------------------------------------------
+// 實際登入狀態一律以 /api/auth/me（Cookie-based Session）為準，
+// 舊版用 sessionStorage 存 account/password 的判斷方式已不再對應現行登入流程（signin.js 早已改呼叫
+// /api/auth/login 簽發 HttpOnly Cookie，不會寫入 sessionStorage），故在此徹底改用真正的登入狀態查詢。
 function checkSignInStatus() {
-  acc = sessionStorage.getItem("account");
-  pwd = sessionStorage.getItem("password");
-
-  $("#navSign").children().remove();
-
-  if (acc != null && pwd != null) {
-    $("#navSign").prop("text", "LogOut");
-    $("#loginbtn").html(acc.toUpperCase() + " &raquo;");
-    $("#loginbtn").prop("href", "./index.html");
-
-    $("#logoutbtn").html("Log-Out &raquo;");
-    $("#logoutbtn").prop("href", "");
-
-    $("#navSign").on("click", function () {
-      sessionStorage.clear();
-      window.location.assign("./index.html");
-    });$("#logoutbtn").on("click", function () {
-      sessionStorage.clear();
-      window.location.assign("./index.html");
+  $.get("/api/auth/me")
+    .done(function (data) {
+      renderSignedIn(data.account);
+    })
+    .fail(function () {
+      renderSignedOut();
     });
-  } else {
-    $("#navSign").prop("href", "signin.html#index");
-    $("#navSign").prop("text", "Sign");
-  }
 }
-function checkLogStatus(href) {
-  acc = sessionStorage.getItem("account");
-  pwd = sessionStorage.getItem("password");
 
-  if (acc != null && pwd != null) {
-    window.location.assign(href);
-  } else {
-    window.location.assign("signin.html#" + href.split(".")[0]);
-  }
+function renderSignedIn(account) {
+  var displayName = (account || "").toUpperCase();
+  $("#loginbtn")
+    .html("👤 " + displayName)
+    .prop("href", "#")
+    .off("click")
+    .on("click", function (e) {
+      e.preventDefault();
+    });
+
+  $("#logoutbtn")
+    .html("Log-Out &raquo;")
+    .prop("href", "#")
+    .off("click")
+    .on("click", function (e) {
+      e.preventDefault();
+      doLogout();
+    });
+}
+
+function renderSignedOut() {
+  $("#loginbtn").html("Log-In &raquo;").prop("href", "signin.html#index").off("click");
+  $("#logoutbtn").html("Register &raquo;").prop("href", "regis.html").off("click");
+}
+
+function doLogout() {
+  $.post("/api/auth/logout").always(function () {
+    window.location.assign("./index.html");
+  });
+}
+
+function checkLogStatus(href) {
+  $.get("/api/auth/me")
+    .done(function () {
+      window.location.assign(href);
+    })
+    .fail(function () {
+      window.location.assign("signin.html#" + href.split(".")[0]);
+    });
 }
 // ! -- Main Area ------------------------------------------------------------------------------
 checkSignInStatus();

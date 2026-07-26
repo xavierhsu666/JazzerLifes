@@ -1,6 +1,6 @@
 # JazzerLife 環境設定文件
 
-**最後更新：** 2026 年 7 月 25 日（v4：新增測試機環境、Git 工作流程）
+**最後更新：** 2026 年 7 月 26 日（v5：總經溫度計模組資料同步除錯完整記錄 — Python 路徑可設定化、IIS App Pool 權限眉角、Yahoo Finance 新資料源、市場指標分類）
 **用途：** 記錄伺服器、IIS、資料庫、部署流程與已知眉角，供之後接續開發或交接使用。
 
 ---
@@ -77,10 +77,17 @@
 | 資料庫產品 | SQL Server 2022 Developer（16.0.1000.6） |
 | 主機 | DESKTOP-E4G7MO5（與正式機 IIS 同機） |
 | 資料庫名稱 | JazzerLife |
-| 主要 Schema | CarMan、FIN、MEM |
+| 主要 Schema | CarMan、FIN、MEM、MACRO |
 | 正式機驗證方式 | Windows 整合式驗證（Trusted_Connection），帳號 `IIS APPPOOL\JazzerLifeAppPool` |
 | **測試機驗證方式** | **SQL Server 驗證**，帳號 `kazuo`（因跨子網域，Windows 整合式驗證的虛擬帳號無法被正式機 SQL Server 辨識） |
 | 帳號權限 | db_datareader、db_datawriter（無 db_owner） |
+
+> **MACRO schema（總體經濟溫度計模組）部署方式：** `CarMan`/`FIN`/`MEM` 三個 schema 是原始資料庫既有結構，`MACRO` 為新增模組，需在部署前於 SSMS 對 JazzerLife 資料庫依序手動執行：
+> 1. `scripts/sql/macro_schema.sql`（建表 + 15 項基礎種子指標）
+> 2. `scripts/sql/macro_schema_add_indicators_2026-07-26.sql`（追加 4 項美國指標：10Y-2Y利差/VIX/核心PCE/消費者信心指數）
+> 3. `scripts/sql/macro_schema_add_market_2026-07-26.sql`（追加 5 項市場資產指標：黃金/比特幣/SP500/費半/台股）
+>
+> 三支皆內含 `IF NOT EXISTS` 防呆、可重複執行。結構備份分別存於 `db_backup/macro_schema_backup_2026-07-26.md`、`macro_schema_add_indicators_backup_2026-07-26.md`。正式區完整部署檢查清單另見 `總經模組_正式區部署備註.md`。
 
 ### 正式機連線字串
 
@@ -248,20 +255,55 @@ Start-WebAppPool -Name "<集區名稱>"
 
 觸發流程：使用者 API → `BackgroundJob.Enqueue`（立即回應，不等待）→ Hangfire Server 背景執行 → PythonRunner 以 `Process.Start` 呼叫 python.exe → 結果可於 Dashboard 追蹤。
 
-**Python 環境（虛擬環境，與系統 Python 隔離）：**
+**Python 環境（原為虛擬環境，2026-07-26 起路徑改為可設定化，兩台機器各自維護）：**
 
 ```
-腳本路徑：C:\Users\ServerDeployArea\JazzerLife\scripts\
-虛擬環境：C:\Users\ServerDeployArea\JazzerLife\scripts\venv\
-呼叫用 python.exe：C:\Users\ServerDeployArea\JazzerLife\scripts\venv\Scripts\python.exe
+正式機（預設值，PythonRunner.cs 內建 fallback，appsettings.json 未設定時自動套用）：
+  腳本路徑：C:\Users\ServerDeployArea\JazzerLife\scripts\
+  呼叫用 python.exe：C:\Users\ServerDeployArea\JazzerLife\scripts\venv\Scripts\python.exe（venv）
+
+測試機（KAZUO，appsettings.json 自行設定，因 venv 是從別台機器複製過來的失效產物）：
+  ScriptsRoot：E:\Project\JazzerLifes\scripts\
+  PythonExePath：C:\Users\wryi6\AppData\Local\Programs\Python\Python313\python.exe（系統 Python，繞過失效的 venv）
 ```
+
+- `PythonRunner.Configure(scriptsRoot, pythonExePathOverride)` 於 `Program.cs` 啟動時讀取 `appsettings.json` 的 `ScriptsRoot`／`PythonExePath` 兩個獨立設定值，兩者互不影響：`ScriptsRoot` 決定去哪裡找 `.py` 腳本檔案，`PythonExePath` 決定用哪個直譯器執行。皆為選填，未設定時退回上方正式機的舊硬編碼路徑，不影響既有正式機運作。
+- 若某台機器的 Python 腳本只用標準函式庫（目前 `fetch_fred.py`／`fetch_tw_gov.py`／`fetch_yahoo.py` 皆是），其實不需要 venv，可直接用 `PythonExePath` 指向系統 Python，這是測試機採用的做法。
+
+**⚠️ IIS App Pool 權限眉角（2026-07-26 除錯發現，之後任何機器只要改用非預設 `PythonExePath` 都可能踩到）：**
+
+- **症狀**：Hangfire job 顯示「Succeeded」，但 Duration 只有個位數~數十毫秒（正常應有實際 HTTP 連線的秒級時間），`/api/macro/indicators` 查詢仍全部是 null。IIS 底下預設看不到 Console/ILogger 輸出，很難察覺問題。
+- **除錯技巧**：暫時 `Stop-WebAppPool`，改用 `dotnet <發布輸出資料夾>\JazzerLifeApi.dll --urls http://localhost:5099` 直接在主控台跑，這樣才看得到即時的 EF Core SQL log 與例外訊息。
+- **根因**：IIS App Pool 身分（預設 `IIS AppPool\<PoolName>` 虛擬帳號）對 `PythonExePath` 指向的 python.exe 所在資料夾、以及 `ScriptsRoot` 資料夾，沒有讀取＋執行權限。**個人使用者的 AppData 路徑格外容易中招**，因為 App Pool 虛擬帳號完全碰不到別人的使用者設定檔目錄。
+- **修法**：
+  ```powershell
+  Import-Module WebAdministration
+  Get-ItemProperty "IIS:\AppPools\<PoolName>" -Name processModel.identityType   # 先確認身分
+
+  icacls "<PythonExePath 所在資料夾>" /grant "IIS AppPool\<PoolName>:(OI)(CI)RX" /T
+  icacls "<ScriptsRoot 資料夾>" /grant "IIS AppPool\<PoolName>:(OI)(CI)RX" /T
+  ```
+- 正式機若沿用預設的 `C:\Users\ServerDeployArea\JazzerLife\scripts\venv\Scripts\python.exe`（本來就是給 IIS 用的固定服務帳號路徑），理論上不會踩到這個問題；此提醒主要留給日後任何機器改用個人化 `PythonExePath` 的情境。
 
 **PythonRunner 安全設計重點：**
 - FileName 與腳本路徑固定寫死，不由外部輸入決定；參數一律用 `ArgumentList` 陣列傳遞，不做字串拼接、不經過 shell。
-- 設定執行逾時（目前 30 秒）並於逾時強制 `Kill()`，避免程序卡死佔用資源。
+- 設定執行逾時（目前 30~60 秒依腳本而定）並於逾時強制 `Kill()`，避免程序卡死佔用資源。
 - 重新導向 StandardOutput / StandardError，執行結果與錯誤皆可回收處理。
 
 **待決策：** Python 腳本存放位置（與 JazzerLifeApi 專案平行、不在其內）是否維持，使用者仍在考慮中。
+
+**總經資料同步排程（RecurringJob）：**
+
+| 項目 | 內容 |
+|---|---|
+| Job ID | `macro-daily-sync` |
+| 排程 | 每日 06:00（`Cron.Daily(6)`），於 `Program.cs` 以 `RecurringJob.AddOrUpdate<EconDataSyncRunner>` 註冊 |
+| 執行內容 | 依序呼叫 `fetch_fred.py`（美國，含 SP500/比特幣）、`fetch_tw_gov.py`（台灣）、`fetch_yahoo.py`（黃金/費半指數/台股，市場資產），寫入 `MACRO.EconIndicatorValue`，再比對 `MACRO.EconAlertRule` 觸發示警 |
+| 手動觸發 | `POST /api/tasks/run-macro-sync`（需登入） |
+| 相依設定 | `appsettings.json` 需新增 `FredApiKey`（至 https://fred.stlouisfed.org/docs/api/api_key.html 申請免費 Key），未設定時僅略過 FRED 同步並記錄警告，不會拋錯 |
+| 台灣資料來源設定 | `scripts/tw_gov_sources.json`，目前完成 `TW_UNEMPLOYMENT`／`TW_CPI_YOY`／`TW_PPI_YOY`／`TW_GDP_YOY` 共 4 項；`TW_CORE_CPI_YOY`／`TW_EXPORT_ORDERS_YOY` 待人工確認來源網址，`TW_BUSINESS_SIGNAL` 已知來源但格式是 ZIP、腳本尚未支援解壓縮 |
+| 指標分類與溫度計計分 | `EconIndicator.Category = '市場'`（黃金/比特幣/SP500/費半/台股）不計入 `MacroCompositeEndpoints.cs` 的景氣溫度計綜合分數，避免市場情緒污染總體經濟健康度判讀，但仍會出現在指標矩陣與走勢圖 |
+| Yahoo Finance 資料源 | 非官方 API，無 Key、無 SLA，`fetch_yahoo.py` 已設定瀏覽器樣式 User-Agent 降低被擋機率，但仍需留意長期穩定性，已於測試機（KAZUO）驗證連線正常（2026-07-26） |
 
 ---
 
@@ -378,6 +420,7 @@ git config --global --add safe.directory <資料夾路徑>
 | — | Finance 模組：帳單管理、麻布資料上傳、存款帳戶 | 完成 |
 | — | Finance 模組：移除投資組合、未來規劃 | 待前端 HTML/JS 清理收尾 |
 | — | **測試機環境建置（KAZUO）** | **完成** |
+| — | Macro 模組：DB Schema、資料同步管線（FRED/台灣官方/Yahoo Finance）、API、示警、前端（含分類分組、圖表美化） | 測試機驗證完成，正式區未部署 |
 | 五 | 上線前安全檢查清單 | 尚未開始 |
 
 ### 尚待處理事項
@@ -389,6 +432,9 @@ git config --global --add safe.directory <資料夾路徑>
 - [ ] Python 腳本存放位置決策待定（目前維持與 JazzerLifeApi 平行、專案外部）。
 - [ ] 階段五：應用程式集區權限最小化複查、Hangfire Dashboard 壓力測試、SQL Server 對外埠是否封閉之確認。
 - [ ] 若正式機 IP（192.168.1.101）未來變動，需同步更新測試機的 `appsettings.json` 連線字串。
+- [ ] 正式區部署總經模組：依 `總經模組_正式區部署備註.md` 執行（含新增指標 SQL、`fetch_yahoo.py` 複製與連線驗證、IIS App Pool 權限檢查）。
+- [ ] 台灣官方資料：`TW_CORE_CPI_YOY`、`TW_EXPORT_ORDERS_YOY` 待人工查詢穩定資料源；`TW_BUSINESS_SIGNAL` 已知來源但為 ZIP 格式，`fetch_tw_gov.py` 需擴充解壓縮支援才能啟用。
+- [ ] Yahoo Finance（`fetch_yahoo.py`）為非官方 API，需持續觀察正式機的長期連線穩定性，若頻繁失敗需評估替代來源。
 
 ---
 

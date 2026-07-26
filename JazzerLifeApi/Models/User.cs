@@ -21,6 +21,8 @@ public partial class User
 
     public DateTime? Birthday { get; set; }
 
+    public virtual ICollection<EconAlertRule> EconAlertRules { get; set; } = new List<EconAlertRule>();
+
     public virtual ICollection<MaintenanceCycle> MaintenanceCycles { get; set; } = new List<MaintenanceCycle>();
 
     public virtual ICollection<MaintenanceShop> MaintenanceShops { get; set; } = new List<MaintenanceShop>();

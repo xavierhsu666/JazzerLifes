@@ -143,6 +143,7 @@ button {
     -webkit-text-fill-color: transparent;
     background-clip: text;
     transition: opacity var(--transition-normal);
+    cursor: pointer;
 }
 
 .sidebar.collapsed .logo-text {

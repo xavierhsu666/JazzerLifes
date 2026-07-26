@@ -1,6 +1,6 @@
 # JazzerLife
 
-個人生活管理系統，整合**車輛管理**與**財務管理**兩大功能模組，透過 ASP.NET Core Web API 提供服務，前端為純 HTML + jQuery + ag-Grid + Highcharts 打造的儀表板介面。
+個人生活管理系統，整合**車輛管理**、**財務管理**與**總體經濟溫度計**三大功能模組，透過 ASP.NET Core Web API 提供服務，前端為純 HTML + jQuery + ag-Grid + Highcharts 打造的儀表板介面。
 
 > 本專案由舊版 ASP.NET Framework（.asmx Web Service）+ 直接 SQL 拼接查詢的架構，逐步安全重寫為 ASP.NET Core + Entity Framework Core 架構。
 
@@ -48,6 +48,18 @@
 | 帳單管理 | 週期性帳單登記，依頻率規則（週/月/年）自動展開全年支出預測 |
 | 資料上傳 | 上傳銀行匯出的 CSV 檔案，自動依欄位特徵判斷為收支明細/帳戶餘額/股票庫存並寫入資料庫 |
 | 存款帳戶總覽 | 依月份查看各帳戶餘額快照，支援手動修改結餘 |
+
+### 🌡️ 總體經濟溫度計（Macro Pulse）
+
+| 功能 | 說明 |
+|---|---|
+| 景氣溫度計 | 台灣／美國各自的綜合分數（0-100）與燈號（藍/綠/黃紅/紅），依指標歷史百分位加權計算；「市場」分類（股市/黃金/加密貨幣等資產）不計入分數，避免市場情緒污染總體經濟健康度判讀 |
+| 指標矩陣 | 台美共 24 項指標，依分類（景氣/物價/就業/生產/利率/貿易/市場）分組顯示，含最新值、年增率、個別燈號 |
+| 歷史走勢 | 單一指標歷史趨勢圖（Highcharts areaspline，依分類配色的漸層區域圖），指標選擇改為依分類分組的下拉選單 |
+| 示警規則 | 自訂指標門檻條件，資料同步後自動比對並記錄觸發通知 |
+| 資料同步 | Hangfire 每日排程呼叫 Python 腳本擷取 FRED（美國）、台灣官方開放資料、Yahoo Finance（市場資產），寫入資料庫 |
+
+> 台灣官方開放資料來源目前完成失業率／CPI年增率／PPI年增率／GDP成長率共 4 項（`scripts/tw_gov_sources.json`），其餘 3 項（核心CPI/景氣信號燈/外銷訂單）因未找到穩定固定下載網址或格式尚未支援（ZIP），需人工確認來源或擴充腳本後補上，詳見該檔案內的 note 說明。市場資產指標（黃金/費半指數/台股加權指數）走 Yahoo Finance 非官方 API，無 SLA 保證，需留意長期穩定性。
 
 ---
 
@@ -187,15 +199,31 @@ JazzerLifeApi/
 │   ├── FinanceProjectExpectedEndpoints.cs  # 專案-預期資產變化
 │   ├── FinanceBillEndpoints.cs      # 帳單管理
 │   ├── FinanceAccountEndpoints.cs   # 存款帳戶總覽
-│   └── FinanceUploadEndpoints.cs    # CSV 資料上傳解析
+│   ├── FinanceUploadEndpoints.cs    # CSV 資料上傳解析
+│   ├── MacroIndicatorEndpoints.cs   # 總經指標清單/時序查詢
+│   ├── MacroCompositeEndpoints.cs   # 總經綜合溫度計分數/燈號計算
+│   ├── MacroAlertEndpoints.cs       # 總經示警規則 CRUD + 觸發紀錄
+│   └── MacroSignalHelper.cs         # 燈號/百分位計算共用邏輯
 ├── wwwroot/                         # 靜態前端頁面
 │   ├── car.html / assets/js/car.js         # 車輛管理前端
 │   ├── finance.html / assets/js/finance.js # 財務管理前端
+│   ├── macro.html / assets/js/macro.js     # 總經溫度計前端
 │   └── signin.html / assets/js/signin.js   # 登入頁
 ├── Program.cs                       # 應用程式進入點，服務註冊、路由掛載
 ├── HangfireAuthFilter.cs            # Hangfire Dashboard 授權過濾器
 ├── PythonRunner.cs                  # 安全呼叫 Python 腳本的工具方法
+├── EconDataSyncRunner.cs            # 總經資料同步（FRED/台灣官方）+ 示警評估
 └── JazzerLifeApi.csproj
+```
+
+```
+scripts/
+├── fetch_fred.py           # 擷取 FRED（美國聯準會）指標
+├── fetch_tw_gov.py         # 擷取台灣官方開放資料指標
+├── fetch_yahoo.py          # 擷取 Yahoo Finance 市場資產指標（黃金/費半/台股，非官方API）
+├── tw_gov_sources.json     # 台灣資料來源設定（url/欄位對應）
+├── sql/                    # MACRO schema 建立與追加種子資料腳本
+└── test_task.py            # Hangfire 測試腳本
 ```
 
 ---
@@ -239,6 +267,18 @@ JazzerLifeApi/
 | GET/POST | `/api/finance/bills` | 帳單管理 |
 | GET/PUT | `/api/finance/accounts` | 存款帳戶總覽/修改結餘 |
 | POST | `/api/finance/upload-details` | CSV 資料上傳（明細/帳戶/庫存自動判斷）|
+
+### 總體經濟溫度計
+
+| Method | 路徑 | 說明 |
+|---|---|---|
+| GET | `/api/macro/indicators` | 指標矩陣（可用 `country` 篩選 TW/US）|
+| GET | `/api/macro/indicators/{code}/series` | 單一指標歷史走勢（`months` 參數） |
+| GET | `/api/macro/composite-score` | 綜合溫度計分數與燈號（`country` 必填） |
+| GET/POST/PUT/DELETE | `/api/macro/alert-rules` | 示警規則 CRUD |
+| GET | `/api/macro/alerts` | 示警觸發紀錄查詢（`unreadOnly` 篩選） |
+| POST | `/api/macro/alerts/{id}/mark-read` | 標記示警紀錄已讀 |
+| POST | `/api/tasks/run-macro-sync` | 手動觸發總經資料同步（另有 Hangfire 每日 06:00 排程） |
 
 ### 報表工具
 
@@ -288,6 +328,10 @@ Start-WebAppPool -Name "<正式環境集區名稱>"
 - Windows 用戶端作業系統（非 Server 版）的 IIS 有同時連線數上限，不適合高流量對外服務。
 - 跨網段部署時，Windows 整合式驗證的應用程式集區虛擬帳號無法被遠端 SQL Server 辨識，需改用 SQL Server 驗證帳號密碼。
 - 部分歷史功能（投資組合、退休/貸款試算）因不再使用已從前端移除，相關資料表仍保留於資料庫但無對應 UI。
+- 台灣官方開放資料多數缺乏穩定的固定下載 API，`scripts/tw_gov_sources.json` 目前完成失業率／CPI年增率／PPI年增率／GDP成長率共 4 項，其餘 3 項（核心CPI、景氣對策信號燈、外銷訂單）需人工確認來源網址（或擴充腳本支援 ZIP 格式）後補上。
+- FRED API 需自行申請免費 API Key 並填入 `appsettings.json` 的 `FredApiKey`，否則 `/api/tasks/run-macro-sync` 會略過美國指標同步（不會報錯，僅記錄警告 log）。
+- Yahoo Finance Chart API（`fetch_yahoo.py` 使用）為非官方公開端點，無 API Key 也無官方 SLA，長期穩定性未知，若持續失敗需評估改用付費/官方資料源替代。
+- IIS 部署時，若 `PythonExePath` 指向個人使用者的 AppData 路徑，App Pool 虛擬帳號預設無權限存取，需另外用 `icacls` 授權（詳見 `JazzerLife_環境設定文件.md` 第六節）。
 
 ---
 

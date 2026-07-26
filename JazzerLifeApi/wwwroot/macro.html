@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>JazzerLife Macro - 總體經濟溫度計</title>
+
+  <!-- PWA：手機「加到主畫面」後可全螢幕開啟，比照 finance/car 模組設定 -->
+  <link rel="manifest" href="/manifest-macro.json" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Macro" />
+  <link rel="apple-touch-icon" href="/assets/image/apple-touch-icon.png" />
+
+  <script src="https://code.jquery.com/jquery-3.6.0.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highcharts/11.4.8/highcharts.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highcharts/11.4.8/modules/exporting.js"></script>
+
+  <link rel="stylesheet" href="/assets/css/macro.css" />
+  <link rel="icon" href="/assets/image/jazzerlife_logo.png" type="image/png" />
+</head>
+
+<body>
+  <!-- 懸浮選單按鈕 (僅在手機/平板顯示) -->
+  <button class="floating-menu-btn" id="floatingMenuBtn" aria-label="開啟選單">
+    <span class="floating-menu-icon">☰</span>
+  </button>
+
+  <!-- 左側功能區 -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <span class="logo-icon">🌡️</span>
+        <h1 class="logo-text" onclick="location.href='index.html'">JazzerLife</h1>
+      </div>
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="切換側邊欄">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <ul class="nav-list">
+        <li class="nav-item active" data-feature="overview">
+          <a href="#" class="nav-link">
+            <span class="nav-icon">🌡️</span>
+            <span class="nav-text">總覽</span>
+          </a>
+        </li>
+        <li class="nav-item" data-feature="alerts">
+          <a href="#" class="nav-link">
+            <span class="nav-icon">🔔</span>
+            <span class="nav-text">示警規則</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-status" id="sidebarUserStatus">
+        <span class="user-name" id="sidebarUserName"></span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 主要內容區 -->
+  <div class="main-wrapper">
+    <header class="top-navbar" id="topNavbar">
+      <nav class="navbar-content">
+        <h2 class="view-title" style="font-size:1.1rem;">總體經濟溫度計</h2>
+        <div class="user-status" id="navbarUserStatus"></div>
+      </nav>
+    </header>
+
+    <main class="main-content" id="mainContent">
+      <!-- 總覽 -->
+      <section class="content-view" id="view-overview" data-view="overview">
+        <div class="view-header">
+          <h2 class="view-title">景氣溫度計總覽</h2>
+          <div class="view-actions">
+            <button class="btn-secondary" id="btnRefreshOverview">重新整理</button>
+            <button class="btn-secondary" id="btnRunSync">立即同步資料</button>
+          </div>
+        </div>
+
+        <div class="thermo-grid" id="thermoGrid">
+          <!-- 動態生成台美溫度計卡片 -->
+        </div>
+
+        <h3 style="font-size:0.95rem; color:var(--color-text-secondary); margin-bottom:10px;">指標矩陣</h3>
+        <div class="indicator-groups" id="indicatorGrid">
+          <!-- 動態生成分類群組，內含指標卡片 -->
+        </div>
+
+        <h3 style="font-size:0.95rem; color:var(--color-text-secondary); margin-bottom:10px;">歷史走勢</h3>
+        <div class="series-select-row">
+          <label for="seriesSelect" class="series-select-label">選擇指標</label>
+          <select id="seriesSelect" class="series-select">
+            <!-- 動態生成，依分類分組 -->
+          </select>
+        </div>
+        <div class="chart-container">
+          <div id="seriesChart" style="min-height:340px;"></div>
+        </div>
+      </section>
+
+      <!-- 示警規則 -->
+      <section class="content-view hidden" id="view-alerts" data-view="alerts">
+        <div class="view-header">
+          <h2 class="view-title">示警規則與通知</h2>
+        </div>
+
+        <form class="alert-form" id="alertRuleForm">
+          <label>
+            指標
+            <select id="alertIndicatorSelect" required></select>
+          </label>
+          <label>
+            條件
+            <select id="alertOperatorSelect" required>
+              <option value=">">大於 &gt;</option>
+              <option value=">=">大於等於 &gt;=</option>
+              <option value="<">小於 &lt;</option>
+              <option value="<=">小於等於 &lt;=</option>
+            </select>
+          </label>
+          <label>
+            門檻值
+            <input type="number" step="0.01" id="alertThresholdInput" required />
+          </label>
+          <button type="submit" class="btn-primary alert-form-submit">新增規則</button>
+        </form>
+
+        <h3 style="font-size:0.95rem; color:var(--color-text-secondary); margin-bottom:10px;">已設定規則</h3>
+        <div class="alert-rule-list" id="alertRuleList">
+          <!-- 動態生成 -->
+        </div>
+
+        <h3 style="font-size:0.95rem; color:var(--color-text-secondary); margin:20px 0 10px;">觸發紀錄</h3>
+        <div class="table-container" id="alertLogContainer">
+          <!-- 動態生成 -->
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- 手機版底部導覽列 -->
+  <nav class="app-bottom-nav" id="appBottomNav" aria-label="主要功能">
+    <div class="app-bottom-nav-item active" data-feature="overview">
+      <span class="app-bottom-nav-icon">🌡️</span>
+      <span class="app-bottom-nav-label">總覽</span>
+    </div>
+    <div class="app-bottom-nav-item" data-feature="alerts">
+      <span class="app-bottom-nav-icon">🔔</span>
+      <span class="app-bottom-nav-label">示警</span>
+    </div>
+  </nav>
+
+  <script src="/assets/js/macro.js"></script>
+  <script>
+    // 註冊共用 Service Worker，讓離線或訊號不穩時仍能開啟頁面外殼（API 資料一律不快取，見 service-worker.js 說明）
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("/service-worker.js").catch(function (err) {
+          console.warn("Service Worker 註冊失敗：", err);
+        });
+      });
+    }
+  </script>
+</body>
+
+</html>

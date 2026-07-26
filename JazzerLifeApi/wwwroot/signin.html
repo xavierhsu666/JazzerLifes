@@ -185,7 +185,7 @@
                 </label>
             </div>
 
-            <button class="btn btn-lg btn-signin btn-block" type="button" onclick="clickSubmit()">
+            <button class="btn btn-lg btn-signin btn-block" type="button" onclick="clickSubmit(this)">
                 Sign in
             </button>
 
@@ -204,6 +204,16 @@
     <script src="../assets/ajax/Ajax_loader-init.js"></script>
     <script src="../assets/js/common.js"></script>
     <script src="../assets/js/signin.js"></script>
+    <script>
+      // 註冊共用 Service Worker，讓離線或訊號不穩時仍能開啟頁面外殼（API 資料一律不快取，見 service-worker.js 說明）
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", function () {
+          navigator.serviceWorker.register("/service-worker.js").catch(function (err) {
+            console.warn("Service Worker 註冊失敗：", err);
+          });
+        });
+      }
+    </script>
 </body>
 
 </html>

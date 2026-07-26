@@ -3,6 +3,7 @@ using JazzerLifeApi.Models;
 using Microsoft.EntityFrameworkCore;
 using Hangfire;
 using JazzerLifeApi.Endpoints;
+using System.Security.Claims;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -17,7 +18,9 @@ builder.Services.AddDbContext<JazzerLifeContext>(options =>
 	options.UseSqlServer(builder.Configuration.GetConnectionString("JazzerLife")));
 builder.Services.AddHangfire(config => config
 	.UseSqlServerStorage(builder.Configuration.GetConnectionString("JazzerLife")));
-builder.Services.AddHangfireServer(); builder.Services.AddAuthentication(Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme)
+builder.Services.AddHangfireServer();
+builder.Services.AddScoped<EconDataSyncRunner>();
+builder.Services.AddAuthentication(Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme)
 	.AddCookie(options =>
 	{
 		options.Cookie.Name = "JazzerLifeAuth";
@@ -41,6 +44,11 @@ builder.Services.AddHangfireServer(); builder.Services.AddAuthentication(Microso
 
 builder.Services.AddAuthorization();
 var app = builder.Build();
+
+// Python 腳本資料夾路徑：正式機/測試機結構相同（<前綴>\JazzerLifes\scripts\），只有前綴不同，
+// 從各機器自行維護的 appsettings.json 讀取 ScriptsRoot，未設定則退回舊有正式機路徑。
+// PythonExePath 為選填：若該機器不用 venv，可直接指定系統 python.exe 路徑覆寫。
+PythonRunner.Configure(app.Configuration["ScriptsRoot"], app.Configuration["PythonExePath"]);
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -67,6 +75,9 @@ app.MapFinanceProjectCashflowEndpoints();
 app.MapFinanceProjectExpectedEndpoints();
 app.MapFinanceBillEndpoints();
 app.MapFinanceAccountEndpoints();
+app.MapMacroIndicatorEndpoints();
+app.MapMacroCompositeEndpoints();
+app.MapMacroAlertEndpoints();
 
 var summaries = new[]
 {
@@ -107,6 +118,22 @@ app.MapPost("/api/tasks/run-python", (string? note) =>
 	BackgroundJob.Enqueue(() => PythonRunner.RunTestTask(jobId));
 	return Results.Ok(new { message = "���Ȥw�ƤJ��C", jobId });
 });
+
+// 總經指標資料同步：每日排程 + 手動觸發（供測試/立即更新使用）
+RecurringJob.AddOrUpdate<EconDataSyncRunner>(
+	"macro-daily-sync",
+	job => job.SyncAllAsync(),
+	Cron.Daily(6));
+
+app.MapPost("/api/tasks/run-macro-sync", (ClaimsPrincipal user) =>
+{
+	if (user.Identity?.IsAuthenticated != true)
+		return Results.Json(new { message = "未登入" }, statusCode: 401);
+
+	var jobId = BackgroundJob.Enqueue<EconDataSyncRunner>(job => job.SyncAllAsync());
+	return Results.Ok(new { message = "總經資料同步任務已排入佇列", jobId });
+});
+
 app.MapReportEndpoints();
 app.MapAuthEndpoints();
 app.Run();

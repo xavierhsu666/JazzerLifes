@@ -14,6 +14,15 @@
 
   <title>Jazzer Life.</title>
 
+  <!-- PWA：手機「加到主畫面」後可全螢幕開啟，比照 finance/macro 模組設定 -->
+  <link rel="manifest" href="/manifest-car.json" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Car" />
+  <link rel="apple-touch-icon" href="/assets/image/apple-touch-icon.png" />
+
   <link rel="canonical" href="https://getbootstrap.com/docs/4.5/examples/dashboard/" />
 
   <!-- Bootstrap core CSS -->
@@ -49,7 +58,7 @@
 <body>
   <div class="app-shell">
     <nav class="app-sidebar">
-      <div class="app-sidebar-brand">Jazzer Life</div>
+      <div class="app-sidebar-brand" onclick="location.href='index.html'" style="cursor:pointer;">Jazzer Life</div>
       <div class="app-nav-item active" data-view="dashboard" onclick="switchSection(this)">
         <i class="ti ti-layout-dashboard" aria-hidden="true"></i><span>Dashboard</span>
       </div>
@@ -491,6 +500,16 @@
   <script src="../assets/js/common.js"></script>
 
   <script src="../assets/js/car.js"></script>
+  <script>
+    // 註冊共用 Service Worker，讓離線或訊號不穩時仍能開啟頁面外殼（API 資料一律不快取，見 service-worker.js 說明）
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("/service-worker.js").catch(function (err) {
+          console.warn("Service Worker 註冊失敗：", err);
+        });
+      });
+    }
+  </script>
 </body>
 
 </html>
