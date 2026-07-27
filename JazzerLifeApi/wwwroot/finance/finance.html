@@ -176,6 +176,26 @@
               </div>
             </div>
           </div>
+
+          <!-- 下月預估開支：帳單管理中下個月的固定支出 + 當年度平均月開銷 -->
+          <div class="stat-card">
+            <div class="stat-card-header">
+              <span class="stat-icon">🔮</span>
+              <h3 class="stat-title" id="statForecastTitle">下月預估開支</h3>
+            </div>
+            <div class="stat-card-body">
+              <div class="stat-value" id="statForecast">
+                <span class="stat-amount">NT$ 0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 下月預估開支明細 -->
+        <div class="table-container" style="margin-top: 16px;">
+          <h3 class="pd-card-title" style="margin-bottom: 4px;">下月預估開支明細</h3>
+          <p class="pd-muted" id="forecastNote">預估值 =「帳單管理」中下個月會發生的固定帳單 ＋ 當年度的平均月開銷（不含固定帳單以外的一次性大額支出估計）。</p>
+          <div id="expenseForecastGrid" class="ag-theme-quartz-dark" style="height: 300px;"></div>
         </div>
 
         <!-- 依分類資產分布：用「設定 > 帳戶分類」設定的分類，彙總最新月份各分類的餘額合計 -->

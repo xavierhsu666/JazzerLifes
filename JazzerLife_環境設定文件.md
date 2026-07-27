@@ -1,6 +1,6 @@
 # JazzerLife 環境設定文件
 
-**最後更新：** 2026 年 7 月 26 日（v5：總經溫度計模組資料同步除錯完整記錄 — Python 路徑可設定化、IIS App Pool 權限眉角、Yahoo Finance 新資料源、市場指標分類）
+**最後更新：** 2026 年 7 月 28 日（v6：新增租屋處電費管理模組 — 房間房租/電費計算、公共電費雙月抄表試算，含 RENT schema 部署方式）
 **用途：** 記錄伺服器、IIS、資料庫、部署流程與已知眉角，供之後接續開發或交接使用。
 
 ---
@@ -77,7 +77,7 @@
 | 資料庫產品 | SQL Server 2022 Developer（16.0.1000.6） |
 | 主機 | DESKTOP-E4G7MO5（與正式機 IIS 同機） |
 | 資料庫名稱 | JazzerLife |
-| 主要 Schema | CarMan、FIN、MEM、MACRO |
+| 主要 Schema | CarMan、FIN、MEM、MACRO、RENT |
 | 正式機驗證方式 | Windows 整合式驗證（Trusted_Connection），帳號 `IIS APPPOOL\JazzerLifeAppPool` |
 | **測試機驗證方式** | **SQL Server 驗證**，帳號 `kazuo`（因跨子網域，Windows 整合式驗證的虛擬帳號無法被正式機 SQL Server 辨識） |
 | 帳號權限 | db_datareader、db_datawriter（無 db_owner） |
@@ -88,6 +88,12 @@
 > 3. `scripts/sql/macro_schema_add_market_2026-07-26.sql`（追加 5 項市場資產指標：黃金/比特幣/SP500/費半/台股）
 >
 > 三支皆內含 `IF NOT EXISTS` 防呆、可重複執行。結構備份分別存於 `db_backup/macro_schema_backup_2026-07-26.md`、`macro_schema_add_indicators_backup_2026-07-26.md`。正式區完整部署檢查清單另見 `總經模組_正式區部署備註.md`。
+
+> **RENT schema（租屋處電費管理模組）部署方式：** 需在部署前於 SSMS 對 JazzerLife 資料庫依序手動執行：
+> 1. `scripts/sql/rent_schema.sql`（建立 RENT schema，共 3 張表：`Property`／`Room`／`RoomBill`）
+> 2. `scripts/sql/rent_schema_add_public_electricity_2026-07-27.sql`（`RoomBill` 新增 `PublicElectricityFee` 欄位；新增 `MasterMeterReading` 表，供公共電費試算用）
+>
+> 兩支皆內含 `IF NOT EXISTS` 防呆、可重複執行，且第 2 支依賴第 1 支已先執行過。結構備份分別存於 `db_backup/rent_schema_backup_2026-07-27.md`、`db_backup/rent_schema_add_public_electricity_backup_2026-07-27.md`。**測試機與正式機目前皆尚未執行**，部署前務必先於 SSMS 手動跑過這兩支腳本，否則 `/api/rent/*` 系列 API 會全部失敗。
 
 ### 正式機連線字串
 
@@ -421,6 +427,7 @@ git config --global --add safe.directory <資料夾路徑>
 | — | Finance 模組：移除投資組合、未來規劃 | 待前端 HTML/JS 清理收尾 |
 | — | **測試機環境建置（KAZUO）** | **完成** |
 | — | Macro 模組：DB Schema、資料同步管線（FRED/台灣官方/Yahoo Finance）、API、示警、前端（含分類分組、圖表美化） | 測試機驗證完成，正式區未部署 |
+| — | **Rent 模組（新增）：房間房租/電費計算、公共電費雙月抄表試算、複製圖片** | 開發完成，**SQL 腳本尚未於任一環境執行，待測試機驗證** |
 | 五 | 上線前安全檢查清單 | 尚未開始 |
 
 ### 尚待處理事項
@@ -435,6 +442,9 @@ git config --global --add safe.directory <資料夾路徑>
 - [ ] 正式區部署總經模組：依 `總經模組_正式區部署備註.md` 執行（含新增指標 SQL、`fetch_yahoo.py` 複製與連線驗證、IIS App Pool 權限檢查）。
 - [ ] 台灣官方資料：`TW_CORE_CPI_YOY`、`TW_EXPORT_ORDERS_YOY` 待人工查詢穩定資料源；`TW_BUSINESS_SIGNAL` 已知來源但為 ZIP 格式，`fetch_tw_gov.py` 需擴充解壓縮支援才能啟用。
 - [ ] Yahoo Finance（`fetch_yahoo.py`）為非官方 API，需持續觀察正式機的長期連線穩定性，若頻繁失敗需評估替代來源。
+- [ ] Rent 模組部署前需先於測試機、正式機 SSMS 依序執行 `scripts/sql/rent_schema.sql` 與 `scripts/sql/rent_schema_add_public_electricity_2026-07-27.sql`。
+- [ ] Rent 模組「公共電費」試算需要使用者持續在「公共電費」頁籤登記主表（母表）讀數（期間需與電費月相同），否則會以 0 帶入；待實際使用幾個月後再評估試算準確度。
+- [ ] Rent 模組目前只有前端單一物件視角（無物件切換 UI），資料庫已支援多物件，未來如需擴充多個出租地址只需前端調整。
 
 ---
 

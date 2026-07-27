@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>JazzerLife Rent - 租屋處電費管理</title>
+
+  <!-- PWA：手機「加到主畫面」後可全螢幕開啟，比照 finance/car/macro 模組設定 -->
+  <link rel="manifest" href="/manifest-rent.json" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Rent" />
+  <link rel="apple-touch-icon" href="/assets/image/apple-touch-icon.png" />
+
+  <script src="https://code.jquery.com/jquery-3.6.0.js"></script>
+  <!-- html2canvas：用於「複製表格圖片」功能，把帳單表格 DOM 擷取成圖片後寫入剪貼簿 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <link rel="stylesheet" href="/assets/css/rent.css" />
+  <link rel="icon" href="/assets/image/jazzerlife_logo.png" type="image/png" />
+</head>
+
+<body>
+  <!-- 懸浮選單按鈕 (僅在手機/平板顯示) -->
+  <button class="floating-menu-btn" id="floatingMenuBtn" aria-label="開啟選單">
+    <span class="floating-menu-icon">☰</span>
+  </button>
+
+  <!-- 左側功能區 -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <span class="logo-icon">🏠</span>
+        <h1 class="logo-text" onclick="location.href='/index.html'">JazzerLife</h1>
+      </div>
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="切換側邊欄">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <ul class="nav-list">
+        <li class="nav-item active" data-feature="bill">
+          <a href="#" class="nav-link">
+            <span class="nav-icon">🧾</span>
+            <span class="nav-text">電費計算</span>
+          </a>
+        </li>
+        <li class="nav-item" data-feature="rooms">
+          <a href="#" class="nav-link">
+            <span class="nav-icon">🏘️</span>
+            <span class="nav-text">房間設定</span>
+          </a>
+        </li>
+        <li class="nav-item" data-feature="master">
+          <a href="#" class="nav-link">
+            <span class="nav-icon">🔌</span>
+            <span class="nav-text">公共電費</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-status" id="sidebarUserStatus">
+        <span class="user-name" id="sidebarUserName"></span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 主要內容區 -->
+  <div class="main-wrapper">
+    <header class="top-navbar" id="topNavbar">
+      <nav class="navbar-content">
+        <h2 class="view-title" style="font-size:1.1rem;">租屋處電費管理</h2>
+        <div class="property-select-row">
+          <select id="propertySelect" class="property-select"></select>
+        </div>
+      </nav>
+    </header>
+
+    <main class="main-content" id="mainContent">
+      <!-- Tab1：電費計算 -->
+      <section class="content-view" id="view-bill" data-view="bill">
+        <div class="view-header">
+          <h2 class="view-title">電費計算</h2>
+          <div class="view-actions">
+            <div class="month-select-row">
+              <label for="billMonthInput" style="font-size:0.8rem;color:var(--color-text-secondary);">月份</label>
+              <input type="month" id="billMonthInput" class="month-input" />
+            </div>
+            <button class="btn-secondary" id="btnReloadBill">重新整理</button>
+            <button class="btn-secondary" id="btnApplyPublicElectricity">帶入公共電費</button>
+            <button class="btn-secondary" id="btnCopyWholeTable">複製整表圖片</button>
+            <button class="btn-secondary" id="btnCopyElectricityOnly">複製電費圖片</button>
+            <button class="btn-primary" id="btnSaveBill">儲存本月帳單</button>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <div id="billCaptureArea">
+            <div class="bill-capture-title" id="billCaptureTitle"></div>
+            <table class="bill-table" id="billTable">
+              <thead>
+                <tr>
+                  <th>房間</th>
+                  <th>上月讀數</th>
+                  <th>本月讀數</th>
+                  <th>用電度數</th>
+                  <th>公共電費</th>
+                  <th>總電費</th>
+                  <th>房租</th>
+                  <th>調整金額</th>
+                  <th>應繳合計</th>
+                  <th>繳費狀態</th>
+                  <th>備註</th>
+                  <th class="action-col">複製</th>
+                </tr>
+              </thead>
+              <tbody id="billTableBody">
+                <!-- 動態生成 -->
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="8">總計</td>
+                  <td id="billTotalAmount">0</td>
+                  <td colspan="3"></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab2：房間設定 -->
+      <section class="content-view hidden" id="view-rooms" data-view="rooms">
+        <div class="view-header">
+          <h2 class="view-title">房間設定</h2>
+          <div class="view-actions">
+            <button class="btn-secondary" id="btnReloadRooms">重新整理</button>
+            <button class="btn-secondary" id="btnToggleShowInactive">顯示已退租房間</button>
+          </div>
+        </div>
+
+        <form class="add-room-form" id="addRoomForm">
+          <label>房間別名
+            <input type="text" id="newRoomAlias" placeholder="例如：3樓A室" required />
+          </label>
+          <label>房租
+            <input type="number" step="1" id="newRoomRent" placeholder="0" required />
+          </label>
+          <label>每度電費
+            <input type="number" step="0.01" id="newRoomRate" placeholder="0" required />
+          </label>
+          <label>彈性調整金額
+            <input type="number" step="1" id="newRoomAdjustment" placeholder="0" value="0" />
+          </label>
+          <label>排序
+            <input type="number" step="1" id="newRoomSort" placeholder="0" value="0" />
+          </label>
+          <button type="submit" class="btn-primary">新增房間</button>
+        </form>
+
+        <div class="table-container">
+          <table class="room-table" id="roomTable">
+            <thead>
+              <tr>
+                <th>房間別名</th>
+                <th>房租</th>
+                <th>每度電費</th>
+                <th>彈性調整金額</th>
+                <th>排序</th>
+                <th>狀態</th>
+                <th class="action-col">操作</th>
+              </tr>
+            </thead>
+            <tbody id="roomTableBody">
+              <!-- 動態生成 -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Tab3：公共電費（主表資料管理 + 試算） -->
+      <section class="content-view hidden" id="view-master" data-view="master">
+        <div class="view-header">
+          <h2 class="view-title">公共電費</h2>
+          <div class="view-actions">
+            <button class="btn-secondary" id="btnReloadMaster">重新整理</button>
+          </div>
+        </div>
+
+        <div class="table-container" id="publicEstimatePanel" style="margin-bottom: var(--spacing-lg);">
+          <!-- 動態生成：試算明細 -->
+        </div>
+
+        <form class="add-room-form" id="masterMeterForm" style="grid-template-columns: repeat(4, minmax(0, 1fr)) auto;">
+          <label>期間（主表帳單對應月份）
+            <input type="month" id="masterMonthInput" required />
+          </label>
+          <label>主表總用電度數
+            <input type="number" step="0.01" id="masterUsageInput" placeholder="0" required />
+          </label>
+          <label>該期總電費金額
+            <input type="number" step="1" id="masterAmountInput" placeholder="0" required />
+          </label>
+          <label>備註
+            <input type="text" id="masterNoteInput" placeholder="選填" />
+          </label>
+          <button type="submit" class="btn-primary">儲存</button>
+        </form>
+
+        <div class="table-container">
+          <table class="room-table" id="masterMeterTable">
+            <thead>
+              <tr>
+                <th>期間</th>
+                <th>總用電度數</th>
+                <th>總電費金額</th>
+                <th>平均電價</th>
+                <th>備註</th>
+                <th class="action-col">操作</th>
+              </tr>
+            </thead>
+            <tbody id="masterMeterTableBody">
+              <!-- 動態生成 -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- 手機版底部導覽列 -->
+  <nav class="app-bottom-nav" id="appBottomNav" aria-label="主要功能">
+    <div class="app-bottom-nav-item active" data-feature="bill">
+      <span class="app-bottom-nav-icon">🧾</span>
+      <span class="app-bottom-nav-label">電費計算</span>
+    </div>
+    <div class="app-bottom-nav-item" data-feature="rooms">
+      <span class="app-bottom-nav-icon">🏘️</span>
+      <span class="app-bottom-nav-label">房間設定</span>
+    </div>
+    <div class="app-bottom-nav-item" data-feature="master">
+      <span class="app-bottom-nav-icon">🔌</span>
+      <span class="app-bottom-nav-label">公共電費</span>
+    </div>
+  </nav>
+
+  <script src="/assets/js/rent.js"></script>
+  <script>
+    // 註冊共用 Service Worker，讓離線或訊號不穩時仍能開啟頁面外殼（API 資料一律不快取，見 service-worker.js 說明）
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("/service-worker.js").catch(function (err) {
+          console.warn("Service Worker 註冊失敗：", err);
+        });
+      });
+    }
+  </script>
+</body>
+
+</html>

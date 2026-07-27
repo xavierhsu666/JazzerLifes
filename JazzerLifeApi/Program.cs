@@ -79,6 +79,10 @@ app.MapFinanceAccountCategoryEndpoints();
 app.MapMacroIndicatorEndpoints();
 app.MapMacroCompositeEndpoints();
 app.MapMacroAlertEndpoints();
+app.MapRentPropertyEndpoints();
+app.MapRentRoomEndpoints();
+app.MapRentBillEndpoints();
+app.MapRentMasterMeterEndpoints();
 
 var summaries = new[]
 {

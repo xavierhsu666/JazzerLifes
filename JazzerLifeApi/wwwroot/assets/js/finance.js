@@ -34,7 +34,7 @@ class FinanceApp {
         this.gridDefsMap = {
             "transaction-income-details": [
                 { field: "YearMonth", headerName: "年月", width: 120, sort: "desc", filter: "agSetColumnFilter", mobileHide: true },
-                { field: "TransactionDate", headerName: "日期", width: 100, sort: "desc" },
+                { field: "TransactionDate", headerName: "日期", width: 120, minWidth: 120, sort: "desc", valueFormatter: (params) => this.formatDate(params.value) },
                 { field: "Category", headerName: "類別", width: 105 },
                 { field: "OrganizationName", headerName: "銀行", width: 100, mobileHide: true },
                 { field: "AccountName", headerName: "帳戶", width: 100, mobileHide: true },
@@ -62,7 +62,7 @@ class FinanceApp {
             ],
             "transaction-expense-details": [
                 { field: "YearMonth", headerName: "年月", width: 120, sort: "desc", filter: "agSetColumnFilter", mobileHide: true },
-                { field: "TransactionDate", headerName: "日期", width: 100, sort: "desc" },
+                { field: "TransactionDate", headerName: "日期", width: 120, minWidth: 120, sort: "desc", valueFormatter: (params) => this.formatDate(params.value) },
                 { field: "Category", headerName: "類別", width: 105 },
                 { field: "OrganizationName", headerName: "銀行", width: 100, mobileHide: true },
                 { field: "AccountName", headerName: "帳戶", width: 100, mobileHide: true },
@@ -90,7 +90,7 @@ class FinanceApp {
             ],
             "transaction-details": [
                 { field: "YearMonth", headerName: "年月", width: 120, sort: "desc", filter: "agSetColumnFilter", mobileHide: true },
-                { field: "TransactionDate", headerName: "日期", width: 100, sort: "desc" },
+                { field: "TransactionDate", headerName: "日期", width: 120, minWidth: 120, sort: "desc", valueFormatter: (params) => this.formatDate(params.value) },
                 { field: "Category", headerName: "類別", width: 105 },
                 { field: "OrganizationName", headerName: "銀行", width: 100, mobileHide: true },
                 { field: "AccountName", headerName: "帳戶", width: 100, mobileHide: true },
@@ -247,8 +247,8 @@ class FinanceApp {
                 { field: "BillProjectId", headerName: "專案名稱", width: 150, sort: "desc" },
                 { field: "BillName", headerName: "帳單名稱", width: 150 },
                 { field: "Frequency", headerName: "頻率", width: 400 },
-                { field: "BillStartTime", headerName: "開始日期", width: 200 },
-                { field: "BillEndTime", headerName: "結束日期", width: 200 },
+                { field: "BillStartTime", headerName: "開始日期", width: 130, valueFormatter: (params) => this.formatDate(params.value) },
+                { field: "BillEndTime", headerName: "結束日期", width: 130, valueFormatter: (params) => this.formatDate(params.value) },
                 {
                     field: "BillAmount",
                     headerName: "金額",
@@ -829,6 +829,7 @@ class FinanceApp {
                     selfObj.updateStatCards(viewId);
                 });
                 selfObj.renderAssetCategoryBreakdown();
+                selfObj.renderExpenseForecast();
                 break;
             case "cash-flow":
                 $("#cashFlowChart").empty();
@@ -1393,6 +1394,19 @@ class FinanceApp {
         return prefix + "NT$ " + rounded.toLocaleString();
     }
 
+    // 表格用的日期格式化：一律只顯示 yyyy-MM-dd，不要後面的時間或時區資訊。
+    // 後端回傳的可能是 "2026-07-12T00:00:00" 這種 ISO 字串，也可能已經是純日期，兩種都要能處理
+    formatDate(value) {
+        if (value === null || value === undefined || value === "") return "";
+        const str = String(value);
+        // 已經是 yyyy-MM-dd 開頭的字串（含 ISO 格式）直接截前 10 碼，避開時區換算造成日期跳掉的問題
+        const m = str.match(/^(\d{4}-\d{2}-\d{2})/);
+        if (m) return m[1];
+        const d = new Date(str);
+        if (isNaN(d.getTime())) return str;
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+
     // 圖表座標軸用的精簡單位：四捨五入到整數 K，破百萬才切到 M（最多留 1 位小數），
     // 避免出現像 "12.345K" 這種又長又有小數點的軸標籤
     formatAxisCurrency(value) {
@@ -1921,6 +1935,8 @@ class FinanceApp {
                         selectEl.value = opt.value;
                         selectEl.dispatchEvent(new Event("change", { bubbles: true }));
                     }
+                    // 選完立刻更新按鈕上顯示的文字，不然要等下次點開才會刷新（會看起來像選了上一次的項目）
+                    triggerLabel.textContent = opt.textContent;
                     closeList();
                 });
                 list.appendChild(item);
@@ -2489,7 +2505,11 @@ class FinanceApp {
             animateRows: true,
             stopEditingWhenCellsLoseFocus: true,
             // 分類分析樞紐表的「＝ 合計 ＝」列用專屬 class 加底色標示，其他表格沒有 category 欄位或不會有這個值，不受影響
-            getRowClass: (params) => (params.data && params.data.category === "＝ 合計 ＝" ? "ca-total-row" : undefined),
+            getRowClass: (params) => {
+                if (!params.data) return undefined;
+                // 分類分析樞紐表用 category 欄位標示合計列；其他表格（如下月預估開支）可直接掛 _isTotal 旗標
+                return params.data._isTotal || params.data.category === "＝ 合計 ＝" ? "ca-total-row" : undefined;
+            },
         };
         if (typeof onCellValueChanged === "function") {
             options.onCellValueChanged = onCellValueChanged;
@@ -3384,6 +3404,162 @@ class FinanceApp {
                 .fail(function (xhr) {
                     alert("更新失敗：" + (xhr.responseJSON?.message || "請洽系統管理員"));
                 });
+        });
+    }
+
+    // 「總覽 > 資產」頁面的「下月預估開支」：
+    //   預估值 =（帳單管理中，下個月會發生的固定帳單合計）＋（近 3 個月變動支出中位數）
+    //
+    // 三個跟先前版本不同、討論過後決定的重點：
+    // 1. 避免雙重計算：如果一筆交易明細的描述/類別/帳戶/備註對得上某張帳單的名稱，
+    //    代表這筆支出「已經」被算在上面的固定帳單合計裡了，計算「變動支出」時要排除掉，
+    //    不然會被算兩次、預估值虛高。比對邏輯比照專案管理「現金流關鍵字規則」的做法（Contains 比對）。
+    // 2. 用「近 3 個月」而非「當年度全部月份」：對最近消費習慣有變化（換工作、開始存錢）的人反應更快，
+    //    只抓「今天所在月份」之前的 3 個完整月份，資料不足 3 個月時就用現有的月份數。
+    // 3. 用中位數而非平均值：不希望單一異常月份（繳稅、買大型家電）把預估值拉偏。
+    //
+    // 這裡沿用「每月支出」頁面已經在用的 computeMonthlyForecast（frequency_tool.js）算固定帳單，
+    // 不另外在後端重寫一套頻率展開邏輯，避免兩邊算法不一致。
+    renderExpenseForecast() {
+        var self = this;
+        var container = document.getElementById("expenseForecastGrid");
+        if (!container) return;
+        $(container).empty();
+
+        var now = new Date();
+        // 下個月（跨年時自動進位到隔年 1 月）
+        var nextMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        var nextYear = nextMonthDate.getFullYear();
+        var nextMonth = nextMonthDate.getMonth() + 1; // 1..12
+        var nextMonthLabel = `${nextYear}-${String(nextMonth).padStart(2, "0")}`;
+        var LOOKBACK_MONTHS = 3;
+
+        $.when(this.load_data("bills"), this.load_data("detail")).then(function () {
+            var bills = self.data.bills || [];
+            var details = self.data.details || [];
+
+            // --- 1. 下個月的固定帳單 ---
+            var billRows = [];
+            var billTotal = 0;
+            try {
+                var forecast = computeMonthlyForecast(bills, nextYear);
+                var monthBreakdown = (forecast.breakdown || []).find((b) => b.month === nextMonth);
+                (monthBreakdown ? monthBreakdown.items : []).forEach((item) => {
+                    billRows.push({
+                        type: "固定帳單",
+                        name: `${item.name}${item.count > 1 ? ` ×${item.count}` : ""}`,
+                        note: item.billProject || "",
+                        amount: Math.round(Number(item.subtotal) || 0),
+                    });
+                });
+                billTotal = billRows.reduce((s, r) => s + r.amount, 0);
+            } catch (err) {
+                // 帳單頻率字串若有無法解析的格式，不要讓整張卡片壞掉，只是這段估不出來
+                console.warn("計算下月固定帳單失敗：", err);
+            }
+
+            // --- 2. 判斷一筆交易明細是不是「已經算在帳單管理的固定帳單裡」，避免重複計算 ---
+            var billKeywords = [...new Set(bills.map((b) => String(b.BillName || "").trim()).filter(Boolean))].map((k) => k.toLowerCase());
+            var matchesBillKeyword = (row) => {
+                if (!billKeywords.length) return false;
+                var haystack = [row.Description, row.Category, row.AccountName, row.OrganizationName, row.Tag, row.Notes]
+                    .filter(Boolean)
+                    .join(" ")
+                    .toLowerCase();
+                return billKeywords.some((k) => haystack.includes(k));
+            };
+
+            // --- 3. 近 3 個月「變動支出」（排除已對應到固定帳單的交易），逐月列出 ---
+            var recentMonths = [];
+            for (var i = 1; i <= LOOKBACK_MONTHS; i++) {
+                var d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                recentMonths.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+            }
+            recentMonths.reverse(); // 由舊到新，方便閱讀
+
+            var variableByMonth = {};
+            var excludedByMonth = {};
+            var monthsWithAnyData = new Set();
+            details.forEach((row) => {
+                var ym = String(row.YearMonth || "").trim();
+                if (!recentMonths.includes(ym)) return;
+                monthsWithAnyData.add(ym);
+                var amount = Number(row.Amount || 0);
+                if (amount >= 0) return; // 只算支出
+                if (matchesBillKeyword(row)) {
+                    excludedByMonth[ym] = (excludedByMonth[ym] || 0) + -amount;
+                    return; // 已經算在固定帳單裡，變動支出不重複計算
+                }
+                variableByMonth[ym] = (variableByMonth[ym] || 0) + -amount;
+            });
+
+            // 只取「真的有交易資料」的月份，避免把還沒匯入資料的月份當成 0 元月份
+            var qualifyingMonths = recentMonths.filter((m) => monthsWithAnyData.has(m));
+            var monthlyVariableAmounts = qualifyingMonths.map((m) => Math.round(variableByMonth[m] || 0));
+
+            var median = (nums) => {
+                if (!nums.length) return 0;
+                var sorted = [...nums].sort((a, b) => a - b);
+                var mid = Math.floor(sorted.length / 2);
+                return sorted.length % 2 === 0 ? Math.round((sorted[mid - 1] + sorted[mid]) / 2) : sorted[mid];
+            };
+            var medianVariable = median(monthlyVariableAmounts);
+
+            // --- 4. 組出明細表格：固定帳單列 + 近 3 個月變動支出列（含已排除金額備註）+ 中位數列 + 合計 ---
+            var rows = billRows.slice();
+            qualifyingMonths.forEach((m) => {
+                var excluded = Math.round(excludedByMonth[m] || 0);
+                rows.push({
+                    type: "近期變動支出",
+                    name: `${m} 變動支出`,
+                    note: excluded ? `另有 NT$ ${excluded.toLocaleString()} 已算在固定帳單，不重複計` : "",
+                    amount: Math.round(variableByMonth[m] || 0),
+                });
+            });
+            rows.push({
+                type: "中位數",
+                name: `近 ${qualifyingMonths.length} 個月變動支出中位數`,
+                note: qualifyingMonths.length < LOOKBACK_MONTHS ? `資料不足 ${LOOKBACK_MONTHS} 個月，先以現有月份計算` : "",
+                amount: medianVariable,
+            });
+            var total = billTotal + medianVariable;
+            rows.push({ type: "＝ 合計 ＝", name: "", note: "", amount: total, _isTotal: true });
+
+            var cols = [
+                { field: "type", headerName: "類型", width: 120, minWidth: 110 },
+                { field: "name", headerName: "項目", flex: 1.4, minWidth: 160 },
+                { field: "note", headerName: "說明", flex: 1.4, minWidth: 180 },
+                {
+                    field: "amount",
+                    headerName: "預估金額",
+                    width: 150,
+                    minWidth: 130,
+                    valueFormatter: (params) => "NT$ " + Math.round(Number(params.value || 0)).toLocaleString(),
+                    cellStyle: () => ({ color: "#ff8a80", fontWeight: "600" }),
+                },
+            ];
+
+            self.createDetailGrid("expenseForecast", "expenseForecastGrid", cols, rows);
+
+            // --- 5. 更新統計卡片與說明文字 ---
+            var titleEl = document.getElementById("statForecastTitle");
+            if (titleEl) {
+                titleEl.textContent = `下月預估開支（${nextMonthLabel}）`;
+            }
+            var cardEl = document.getElementById("statForecast");
+            if (cardEl) {
+                cardEl.innerHTML = `
+            <span>固定帳單 NT$ ${billTotal.toLocaleString()}</span>
+            <span>變動支出中位數 NT$ ${medianVariable.toLocaleString()}</span>
+            <span class="stat-amount">預估 NT$ ${total.toLocaleString()}</span>
+            <p class="stat-description">${nextMonthLabel}（依近 ${qualifyingMonths.length} 個月變動支出估算）</p>
+        `;
+            }
+            var noteEl = document.getElementById("forecastNote");
+            if (noteEl) {
+                noteEl.textContent =
+                    "預估值 =「帳單管理」中下個月會發生的固定帳單 ＋ 近 3 個月變動支出的中位數（已排除跟固定帳單名稱對得上的交易，避免重複計算；用中位數是為了不被單一異常大額支出的月份拉偏）。";
+            }
         });
     }
 

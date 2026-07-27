@@ -53,6 +53,14 @@ public partial class JazzerLifeContext : DbContext
 
     public virtual DbSet<ProjectExpectedRow> ProjectExpectedRows { get; set; }
 
+    public virtual DbSet<RentMasterMeterReading> RentMasterMeterReadings { get; set; }
+
+    public virtual DbSet<RentProperty> RentProperties { get; set; }
+
+    public virtual DbSet<RentRoom> RentRooms { get; set; }
+
+    public virtual DbSet<RentRoomBill> RentRoomBills { get; set; }
+
     public virtual DbSet<Stock> Stocks { get; set; }
 
     public virtual DbSet<User> Users { get; set; }
@@ -522,6 +530,115 @@ public partial class JazzerLifeContext : DbContext
             entity.HasOne(d => d.Draft).WithMany(p => p.ProjectExpectedRows)
                 .HasForeignKey(d => d.DraftId)
                 .HasConstraintName("FK_ProjectExpectedRow_Draft");
+        });
+
+        modelBuilder.Entity<RentMasterMeterReading>(entity =>
+        {
+            entity.HasKey(e => e.MasterBillId);
+
+            entity.ToTable("MasterMeterReading", "RENT");
+
+            entity.HasIndex(e => new { e.PropertyId, e.BillMonth }, "UQ_RentMasterMeterReading_PropertyMonth").IsUnique();
+
+            entity.Property(e => e.MasterBillId).HasColumnName("MasterBillID");
+            entity.Property(e => e.PropertyId).HasColumnName("PropertyID");
+            entity.Property(e => e.TotalUsageUnits).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.TotalAmount).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.Note).HasMaxLength(200);
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+
+            entity.HasOne(d => d.Property).WithMany()
+                .HasForeignKey(d => d.PropertyId)
+                .HasConstraintName("FK_RentMasterMeterReading_Property");
+        });
+
+        modelBuilder.Entity<RentProperty>(entity =>
+        {
+            entity.HasKey(e => e.PropertyId);
+
+            entity.ToTable("Property", "RENT");
+
+            entity.HasIndex(e => e.UserId, "IX_RentProperty_UserID");
+
+            entity.Property(e => e.PropertyId).HasColumnName("PropertyID");
+            entity.Property(e => e.UserId).HasColumnName("UserID");
+            entity.Property(e => e.PropertyName).HasMaxLength(100);
+            entity.Property(e => e.Address).HasMaxLength(200);
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+        });
+
+        modelBuilder.Entity<RentRoom>(entity =>
+        {
+            entity.HasKey(e => e.RoomId);
+
+            entity.ToTable("Room", "RENT");
+
+            entity.HasIndex(e => e.PropertyId, "IX_RentRoom_PropertyID");
+
+            entity.Property(e => e.RoomId).HasColumnName("RoomID");
+            entity.Property(e => e.PropertyId).HasColumnName("PropertyID");
+            entity.Property(e => e.RoomAlias).HasMaxLength(50);
+            entity.Property(e => e.MonthlyRent).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.ElectricityRate).HasColumnType("decimal(18, 4)");
+            entity.Property(e => e.AdjustmentAmount).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.SortOrder).HasDefaultValue(0);
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+
+            entity.HasOne(d => d.Property).WithMany(p => p.RentRooms)
+                .HasForeignKey(d => d.PropertyId)
+                .HasConstraintName("FK_RentRoom_Property");
+        });
+
+        modelBuilder.Entity<RentRoomBill>(entity =>
+        {
+            entity.HasKey(e => e.BillId);
+
+            entity.ToTable("RoomBill", "RENT");
+
+            entity.HasIndex(e => new { e.RoomId, e.BillMonth }, "UQ_RentRoomBill_RoomMonth").IsUnique();
+
+            entity.HasIndex(e => e.BillMonth, "IX_RentRoomBill_BillMonth");
+
+            entity.Property(e => e.BillId).HasColumnName("BillID");
+            entity.Property(e => e.RoomId).HasColumnName("RoomID");
+            entity.Property(e => e.PrevReading).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.CurrentReading).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.UsageUnits).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.RentSnapshot).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.RateSnapshot).HasColumnType("decimal(18, 4)");
+            entity.Property(e => e.AdjustmentSnapshot).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.PublicElectricityFee).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.ElectricityFee).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.TotalAmount).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.IsPaid).HasDefaultValue(false);
+            entity.Property(e => e.Note).HasMaxLength(200);
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+
+            entity.HasOne(d => d.Room).WithMany(p => p.RentRoomBills)
+                .HasForeignKey(d => d.RoomId)
+                .HasConstraintName("FK_RentRoomBill_Room");
         });
 
         modelBuilder.Entity<Stock>(entity =>

@@ -1,6 +1,6 @@
 # JazzerLife
 
-個人生活管理系統，整合**車輛管理**、**財務管理**與**總體經濟溫度計**三大功能模組，透過 ASP.NET Core Web API 提供服務，前端為純 HTML + jQuery + ag-Grid + Highcharts 打造的儀表板介面。
+個人生活管理系統，整合**車輛管理**、**財務管理**、**總體經濟溫度計**與**租屋處電費管理**四大功能模組，透過 ASP.NET Core Web API 提供服務，前端為純 HTML + jQuery + ag-Grid + Highcharts 打造的儀表板介面。
 
 > 本專案由舊版 ASP.NET Framework（.asmx Web Service）+ 直接 SQL 拼接查詢的架構，逐步安全重寫為 ASP.NET Core + Entity Framework Core 架構。
 
@@ -60,6 +60,18 @@
 | 資料同步 | Hangfire 每日排程呼叫 Python 腳本擷取 FRED（美國）、台灣官方開放資料、Yahoo Finance（市場資產），寫入資料庫 |
 
 > 台灣官方開放資料來源目前完成失業率／CPI年增率／PPI年增率／GDP成長率共 4 項（`scripts/tw_gov_sources.json`），其餘 3 項（核心CPI/景氣信號燈/外銷訂單）因未找到穩定固定下載網址或格式尚未支援（ZIP），需人工確認來源或擴充腳本後補上，詳見該檔案內的 note 說明。市場資產指標（黃金/費半指數/台股加權指數）走 Yahoo Finance 非官方 API，無 SLA 保證，需留意長期穩定性。
+
+### 🏠 租屋處電費管理（Rent Manager）
+
+| 功能 | 說明 |
+|---|---|
+| 房間設定 | 房間別名、房租、每度電費、彈性調整金額（可正可負）；支援軟刪除（退租），歷史帳單不受影響 |
+| 電費計算 | 依房間設定自動產生當月填寫表，輸入電表讀數即時試算用電度數/電費/應繳合計；房租/電價/調整金額採「當月建立時快照」，之後調整房間設定不影響歷史月份 |
+| 公共電費 | 主表（母表）電費紀錄管理 + 試算：主表每兩個月抄一次表，拿「電費月當月＋上月」各房分表用電加總與主表總用電比較差額，度數平均分攤給各房間，再各自依房間電價換算金額；一鍵帶入電費計算表 |
+| 繳費狀態 | 每筆帳單可標記已收/未收 |
+| 複製圖片 | 整表／單一房間／僅電費相關欄位，皆可複製成圖片（`html2canvas` + 剪貼簿，不支援時自動改為下載 PNG），方便傳給房客對帳 |
+
+> 目前資料庫設計已支援多個出租物件（`RENT.Property`），但前端尚未提供物件切換 UI，預設使用使用者名下第一筆物件。
 
 ---
 
@@ -203,11 +215,16 @@ JazzerLifeApi/
 │   ├── MacroIndicatorEndpoints.cs   # 總經指標清單/時序查詢
 │   ├── MacroCompositeEndpoints.cs   # 總經綜合溫度計分數/燈號計算
 │   ├── MacroAlertEndpoints.cs       # 總經示警規則 CRUD + 觸發紀錄
-│   └── MacroSignalHelper.cs         # 燈號/百分位計算共用邏輯
+│   ├── MacroSignalHelper.cs         # 燈號/百分位計算共用邏輯
+│   ├── RentPropertyEndpoints.cs     # 出租物件 CRUD
+│   ├── RentRoomEndpoints.cs         # 房間設定 CRUD（含軟刪除/退租）
+│   ├── RentBillEndpoints.cs         # 月度帳單查詢/批次儲存/繳費狀態切換
+│   └── RentMasterMeterEndpoints.cs  # 主表電費紀錄 CRUD + 公共電費試算邏輯
 ├── wwwroot/                         # 靜態前端頁面
 │   ├── car.html / assets/js/car.js         # 車輛管理前端
 │   ├── finance.html / assets/js/finance.js # 財務管理前端
 │   ├── macro.html / assets/js/macro.js     # 總經溫度計前端
+│   ├── rent/rent.html / assets/js/rent.js  # 租屋處電費管理前端
 │   └── signin.html / assets/js/signin.js   # 登入頁
 ├── Program.cs                       # 應用程式進入點，服務註冊、路由掛載
 ├── HangfireAuthFilter.cs            # Hangfire Dashboard 授權過濾器
@@ -222,7 +239,7 @@ scripts/
 ├── fetch_tw_gov.py         # 擷取台灣官方開放資料指標
 ├── fetch_yahoo.py          # 擷取 Yahoo Finance 市場資產指標（黃金/費半/台股，非官方API）
 ├── tw_gov_sources.json     # 台灣資料來源設定（url/欄位對應）
-├── sql/                    # MACRO schema 建立與追加種子資料腳本
+├── sql/                    # MACRO / RENT schema 建立與追加異動腳本
 └── test_task.py            # Hangfire 測試腳本
 ```
 
@@ -280,6 +297,17 @@ scripts/
 | POST | `/api/macro/alerts/{id}/mark-read` | 標記示警紀錄已讀 |
 | POST | `/api/tasks/run-macro-sync` | 手動觸發總經資料同步（另有 Hangfire 每日 06:00 排程） |
 
+### 租屋處電費管理
+
+| Method | 路徑 | 說明 |
+|---|---|---|
+| GET/POST/PUT | `/api/rent/properties` | 出租物件查詢/新增/更新 |
+| GET/POST/PUT | `/api/rent/rooms` | 房間設定查詢（`includeInactive` 篩選）/新增/更新（含退租） |
+| GET/POST | `/api/rent/bills` | 查詢某物件某月帳單（草稿列自動帶入預設值）/批次儲存 |
+| POST | `/api/rent/bills/{id}/toggle-paid` | 切換已收/未收款狀態 |
+| GET/POST/DELETE | `/api/rent/master-meter` | 主表（母表）電費紀錄查詢/新增更新（upsert）/刪除 |
+| GET | `/api/rent/public-electricity-estimate` | 試算公共電費（`currentMonthUsage` 選填，優先採用前端即時輸入值） |
+
 ### 報表工具
 
 | Method | 路徑 | 說明 |
@@ -332,6 +360,8 @@ Start-WebAppPool -Name "<正式環境集區名稱>"
 - FRED API 需自行申請免費 API Key 並填入 `appsettings.json` 的 `FredApiKey`，否則 `/api/tasks/run-macro-sync` 會略過美國指標同步（不會報錯，僅記錄警告 log）。
 - Yahoo Finance Chart API（`fetch_yahoo.py` 使用）為非官方公開端點，無 API Key 也無官方 SLA，長期穩定性未知，若持續失敗需評估改用付費/官方資料源替代。
 - IIS 部署時，若 `PythonExePath` 指向個人使用者的 AppData 路徑，App Pool 虛擬帳號預設無權限存取，需另外用 `icacls` 授權（詳見 `JazzerLife_環境設定文件.md` 第六節）。
+- 租屋處電費管理的「公共電費」試算假設主表（母表）為雙月抄表：需使用者持續在「公共電費」頁籤手動登記主表讀數，且該筆紀錄的期間需與電費月相同（代表涵蓋當月＋上月的合計用電），試算才會準確；未登記時系統會直接以 0 帶入，不會阻擋操作。
+- 租屋處電費管理目前僅支援使用者名下第一筆出租物件的前端切換 UI，資料庫已可支援多物件，未來如需擴充多物件切換僅需前端調整。
 
 ---
 
