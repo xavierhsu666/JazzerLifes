@@ -177,6 +177,12 @@
             </div>
           </div>
         </div>
+
+        <!-- 依分類資產分布：用「設定 > 帳戶分類」設定的分類，彙總最新月份各分類的餘額合計 -->
+        <div class="table-container" style="margin-top: 16px;">
+          <h3 class="pd-card-title" style="margin-bottom: 12px;">依分類資產分布</h3>
+          <div id="assetCategoryBreakdownGrid" class="ag-theme-quartz-dark" style="height: 260px;"></div>
+        </div>
       </section>
 
       <!-- 總覽 - 現金流 -->
@@ -319,8 +325,13 @@
               <button type="button" id="caGranMonth" class="active">依月份</button>
               <button type="button" id="caGranYear">依年份</button>
             </div>
-            <label class="sort-control"><span class="sort-label">起</span><select id="caStart"></select></label>
-            <label class="sort-control"><span class="sort-label">迄</span><select id="caEnd"></select></label>
+            <div class="sort-control ca-range-group">
+              <span class="sort-label">起</span>
+              <select id="caStart"></select>
+              <span class="ca-range-sep">–</span>
+              <span class="sort-label">迄</span>
+              <select id="caEnd"></select>
+            </div>
           </div>
         </div>
         <div class="chart-container">
@@ -586,10 +597,25 @@
               <span class="sort-label">版本月份</span>
               <select id="accountSnapshotMonth"></select>
             </label>
+            <label class="sort-control">
+              <span class="sort-label">分類</span>
+              <select id="accountCategoryFilterSelect"></select>
+            </label>
           </div>
         </div>
+        <div class="account-list-total" id="accountListTotal"></div>
         <div class="table-container">
           <div id="account_balance" class="ag-theme-quartz-dark"></div>
+        </div>
+      </section>
+      <!-- 設定 - 帳戶分類 -->
+      <section class="content-view hidden" id="view-account-category" data-view="account-category">
+        <div class="view-header">
+          <h2 class="view-title">帳戶分類</h2>
+          <p class="view-subtitle">把「銀行＋帳戶」對應到自訂分類（例如：手動新增＋新豐 -&gt; 資產），可在「總覽 › 資產」頁面看到依分類的資產分布。</p>
+        </div>
+        <div class="table-container">
+          <div id="account_category_grid" class="ag-theme-quartz-dark"></div>
         </div>
       </section>
       <!-- 投資組合 - 股票 -->
@@ -657,6 +683,21 @@
       <span class="app-bottom-nav-label">更多</span>
     </div>
   </nav>
+
+  <!-- 手機版「更多」選單：獨立的 bottom sheet，收納不常用的功能（上傳/設定），
+       不依賴側邊欄的滑出機制，避免在部分手機瀏覽器上滑不出來 -->
+  <div class="more-menu-overlay hidden" id="moreMenuOverlay">
+    <div class="more-menu" id="moreMenu">
+      <div class="more-menu-item" data-feature="upload">
+        <span class="app-bottom-nav-icon">🪢</span>
+        <span>上傳</span>
+      </div>
+      <div class="more-menu-item" data-feature="settings">
+        <span class="app-bottom-nav-icon">⚙️</span>
+        <span>設定</span>
+      </div>
+    </div>
+  </div>
 
   <!-- Modal 模板 -->
   <div class="modal-overlay hidden" id="modalOverlay">

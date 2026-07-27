@@ -75,6 +75,7 @@ app.MapFinanceProjectCashflowEndpoints();
 app.MapFinanceProjectExpectedEndpoints();
 app.MapFinanceBillEndpoints();
 app.MapFinanceAccountEndpoints();
+app.MapFinanceAccountCategoryEndpoints();
 app.MapMacroIndicatorEndpoints();
 app.MapMacroCompositeEndpoints();
 app.MapMacroAlertEndpoints();

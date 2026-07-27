@@ -15,6 +15,8 @@ public partial class JazzerLifeContext : DbContext
     {
     }
 
+    public virtual DbSet<AccountCategory> AccountCategories { get; set; }
+
     public virtual DbSet<BankAccount> BankAccounts { get; set; }
 
     public virtual DbSet<Bill> Bills { get; set; }
@@ -59,6 +61,29 @@ public partial class JazzerLifeContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<AccountCategory>(entity =>
+        {
+            entity.HasKey(e => e.AccountCategoryId);
+
+            entity.ToTable("AccountCategory", "FIN");
+
+            entity.HasIndex(e => new { e.UserId, e.OrganizationName, e.AccountName }, "UQ_AccountCategory_UserOrgAccount").IsUnique();
+
+            entity.HasIndex(e => new { e.UserId, e.Category }, "IX_AccountCategory_UserCategory");
+
+            entity.Property(e => e.AccountCategoryId).HasColumnName("AccountCategoryID");
+            entity.Property(e => e.UserId).HasColumnName("UserID");
+            entity.Property(e => e.OrganizationName).HasMaxLength(100);
+            entity.Property(e => e.AccountName).HasMaxLength(100);
+            entity.Property(e => e.Category).HasMaxLength(50);
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+        });
+
         modelBuilder.Entity<BankAccount>(entity =>
         {
             entity

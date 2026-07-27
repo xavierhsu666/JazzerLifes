@@ -3,6 +3,7 @@
   "short_name": "Finance",
   "description": "JazzerLife 個人財務管理系統",
   "lang": "zh-TW",
+  "id": "/finance.html",
   "start_url": "/finance.html",
   "scope": "/",
   "display": "standalone",

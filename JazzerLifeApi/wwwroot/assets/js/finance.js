@@ -34,15 +34,15 @@ class FinanceApp {
         this.gridDefsMap = {
             "transaction-income-details": [
                 { field: "YearMonth", headerName: "年月", width: 120, sort: "desc", filter: "agSetColumnFilter", mobileHide: true },
-                { field: "TransactionDate", headerName: "日期", width: 120, sort: "desc" },
-                { field: "Category", headerName: "類別", width: 130 },
+                { field: "TransactionDate", headerName: "日期", width: 100, sort: "desc" },
+                { field: "Category", headerName: "類別", width: 105 },
                 { field: "OrganizationName", headerName: "銀行", width: 100, mobileHide: true },
                 { field: "AccountName", headerName: "帳戶", width: 100, mobileHide: true },
-                { field: "Description", headerName: "描述", width: 200, flex: 1 },
+                { field: "Description", headerName: "描述", width: 180, minWidth: 110, flex: 1 },
                 {
                     field: "Amount",
                     headerName: "金額",
-                    width: 120,
+                    width: 105,
                     valueFormatter: (params) => this.formatCurrency(params.value),
                     cellStyle: (params) => this.getCellStyle(params.value),
                 },
@@ -51,8 +51,8 @@ class FinanceApp {
                 {
                     field: "_exclude",
                     headerName: "操作",
-                    width: 120,
-                    minWidth: 120,
+                    width: 105,
+                    minWidth: 105,
                     pinned: "right",
                     sortable: false,
                     filter: false,
@@ -62,15 +62,15 @@ class FinanceApp {
             ],
             "transaction-expense-details": [
                 { field: "YearMonth", headerName: "年月", width: 120, sort: "desc", filter: "agSetColumnFilter", mobileHide: true },
-                { field: "TransactionDate", headerName: "日期", width: 120, sort: "desc" },
-                { field: "Category", headerName: "類別", width: 130 },
+                { field: "TransactionDate", headerName: "日期", width: 100, sort: "desc" },
+                { field: "Category", headerName: "類別", width: 105 },
                 { field: "OrganizationName", headerName: "銀行", width: 100, mobileHide: true },
                 { field: "AccountName", headerName: "帳戶", width: 100, mobileHide: true },
-                { field: "Description", headerName: "描述", width: 200, flex: 1 },
+                { field: "Description", headerName: "描述", width: 180, minWidth: 110, flex: 1 },
                 {
                     field: "Amount",
                     headerName: "金額",
-                    width: 120,
+                    width: 105,
                     valueFormatter: (params) => this.formatCurrency(params.value),
                     cellStyle: (params) => this.getCellStyle(params.value),
                 },
@@ -79,8 +79,8 @@ class FinanceApp {
                 {
                     field: "_exclude",
                     headerName: "操作",
-                    width: 120,
-                    minWidth: 120,
+                    width: 105,
+                    minWidth: 105,
                     pinned: "right",
                     sortable: false,
                     filter: false,
@@ -90,15 +90,15 @@ class FinanceApp {
             ],
             "transaction-details": [
                 { field: "YearMonth", headerName: "年月", width: 120, sort: "desc", filter: "agSetColumnFilter", mobileHide: true },
-                { field: "TransactionDate", headerName: "日期", width: 120, sort: "desc" },
-                { field: "Category", headerName: "類別", width: 130 },
+                { field: "TransactionDate", headerName: "日期", width: 100, sort: "desc" },
+                { field: "Category", headerName: "類別", width: 105 },
                 { field: "OrganizationName", headerName: "銀行", width: 100, mobileHide: true },
                 { field: "AccountName", headerName: "帳戶", width: 100, mobileHide: true },
-                { field: "Description", headerName: "描述", width: 200, flex: 1 },
+                { field: "Description", headerName: "描述", width: 180, minWidth: 110, flex: 1 },
                 {
                     field: "Amount",
                     headerName: "金額",
-                    width: 120,
+                    width: 105,
                     valueFormatter: (params) => this.formatCurrency(params.value),
                     cellStyle: (params) => this.getCellStyle(params.value),
                 },
@@ -107,8 +107,8 @@ class FinanceApp {
                 {
                     field: "_exclude",
                     headerName: "操作",
-                    width: 120,
-                    minWidth: 120,
+                    width: 105,
+                    minWidth: 105,
                     pinned: "right",
                     sortable: false,
                     filter: false,
@@ -120,6 +120,7 @@ class FinanceApp {
                 { field: "YearMonth", headerName: "年月", width: 110, sort: "desc", filter: "agSetColumnFilter" },
                 { field: "OrganizationName", headerName: "銀行", flex: 1.2, minWidth: 130 },
                 { field: "AccountName", headerName: "帳戶", flex: 1.2, minWidth: 130 },
+                { field: "Category", headerName: "分類", width: 110, minWidth: 100 },
                 { field: "Currency", headerName: "幣別", width: 90 },
                 {
                     field: "AccountBalance",
@@ -335,6 +336,9 @@ class FinanceApp {
             projectDetailDirty: false,
             pdCashflowAllMonths: false,
             accountSnapshotMonth: "",
+            accountCategoryOptions: [],
+            accountCategoryMap: {},
+            accountCategoryFilter: "",
             financialData: {
                 currentMonth: { Assets: null, Income: null, Expense: null, Time: null },
                 lastMonth: { Assets: null, Income: null, Expense: null, Time: null },
@@ -359,7 +363,15 @@ class FinanceApp {
             "transaction-expense-details": false,
         };
 
-        this.categoryAnalysis = { mode: "expense", granularity: "month", start: "", end: "", selectedPeriod: null, lastData: null };
+        const caDefaultRange = this._defaultCategoryAnalysisRange("month");
+        this.categoryAnalysis = {
+            mode: "expense",
+            granularity: "month",
+            start: caDefaultRange.start,
+            end: caDefaultRange.end,
+            selectedPeriod: null,
+            lastData: null,
+        };
 
         this.featureViewsMap = {
             overview: [
@@ -378,7 +390,10 @@ class FinanceApp {
                 { id: "bills-expense-monthly", label: "每月支出" },
             ],
             accounts: [{ id: "account-list", label: "帳戶總覽" }],
-            settings: [{ id: "settings-general", label: "一般設定" }],
+            settings: [
+                { id: "account-category", label: "帳戶分類" },
+                { id: "settings-general", label: "一般設定" },
+            ],
             upload: [{ id: "upload-detail", label: "麻布資料" }],
         };
 
@@ -391,6 +406,7 @@ class FinanceApp {
     init() {
         this.bindEvents();
         this.renderTabs();
+        this.enhanceAllDropdowns();
         var self = this;
         $.get("/api/auth/me")
             .done(function (data) {
@@ -450,12 +466,35 @@ class FinanceApp {
             this.elements.floatingMenuBtn.classList.toggle("active");
         });
 
-        // 手機版底部導覽列的「更多」：開關同一個側邊欄，用來放不常用的「上傳」「設定」等功能
+        // 手機版底部導覽列的「更多」：獨立的 bottom sheet 選單（上傳/設定），
+        // 不依賴側邊欄的滑出動畫，避免在部分手機瀏覽器上點了卻「沒跑出東西」
         const bottomNavMore = document.getElementById("appBottomNavMore");
-        if (bottomNavMore) {
+        const moreMenuOverlay = document.getElementById("moreMenuOverlay");
+        const closeMoreMenu = () => {
+            moreMenuOverlay?.classList.add("hidden");
+            bottomNavMore?.classList.remove("active");
+        };
+        if (bottomNavMore && moreMenuOverlay) {
             bottomNavMore.addEventListener("click", () => {
-                this.toggleSidebar();
-                bottomNavMore.classList.toggle("active", this.elements.sidebar.classList.contains("active"));
+                const isOpen = !moreMenuOverlay.classList.contains("hidden");
+                if (isOpen) {
+                    closeMoreMenu();
+                } else {
+                    moreMenuOverlay.classList.remove("hidden");
+                    bottomNavMore.classList.add("active");
+                }
+            });
+            // 點背景（選單本身以外的地方）關閉
+            moreMenuOverlay.addEventListener("click", (e) => {
+                if (e.target === moreMenuOverlay) {
+                    closeMoreMenu();
+                }
+            });
+            moreMenuOverlay.querySelectorAll(".more-menu-item").forEach((item) => {
+                item.addEventListener("click", () => {
+                    closeMoreMenu();
+                    this.switchFeature(item.dataset.feature);
+                });
             });
         }
 
@@ -520,6 +559,10 @@ class FinanceApp {
             this.state.accountSnapshotMonth = e.target.value;
             this.refreshAccountUI();
         });
+        $("#accountCategoryFilterSelect").on("change", (e) => {
+            this.state.accountCategoryFilter = e.target.value;
+            this.renderAccountListGrid();
+        });
 
         Object.keys(this.detailViewConfig).forEach((viewId) => {
             const cfg = this.detailViewConfig[viewId];
@@ -551,15 +594,17 @@ class FinanceApp {
         });
         $("#caGranMonth").on("click", () => {
             this.categoryAnalysis.granularity = "month";
-            this.categoryAnalysis.start = "";
-            this.categoryAnalysis.end = "";
+            const range = this._defaultCategoryAnalysisRange("month");
+            this.categoryAnalysis.start = range.start;
+            this.categoryAnalysis.end = range.end;
             this.categoryAnalysis.selectedPeriod = null;
             this.renderCategoryAnalysis();
         });
         $("#caGranYear").on("click", () => {
             this.categoryAnalysis.granularity = "year";
-            this.categoryAnalysis.start = "";
-            this.categoryAnalysis.end = "";
+            const range = this._defaultCategoryAnalysisRange("year");
+            this.categoryAnalysis.start = range.start;
+            this.categoryAnalysis.end = range.end;
             this.categoryAnalysis.selectedPeriod = null;
             this.renderCategoryAnalysis();
         });
@@ -783,6 +828,7 @@ class FinanceApp {
                     selfObj.initCharts_byViewId(data, viewId, "assetTrendChart");
                     selfObj.updateStatCards(viewId);
                 });
+                selfObj.renderAssetCategoryBreakdown();
                 break;
             case "cash-flow":
                 $("#cashFlowChart").empty();
@@ -808,9 +854,14 @@ class FinanceApp {
                 $("#account_balance").empty();
                 selfObj.populateAccountMonths().then(function () {
                     selfObj.load_data("accounts").then(function () {
-                        selfObj.initGrids_by_viewId(selfObj.data.account, viewId, "account_balance");
+                        selfObj.loadAccountCategoryMap().then(function () {
+                            selfObj.renderAccountListGrid();
+                        });
                     });
                 });
+                break;
+            case "account-category":
+                selfObj.renderAccountCategoryGrid();
                 break;
             case "project-management":
                 $("#project_list").empty();
@@ -1134,13 +1185,28 @@ class FinanceApp {
         const isMobile = window.innerWidth <= 767;
         // 手機上把 mobileHide 標記的欄位（銀行/帳戶/標註/筆記等次要資訊）先隱藏，減少橫向捲動的資料量；
         // 這些欄位點列還是看得到，因為點一列會在下方交易明細卡片顯示完整資料
-        const columnDefs = (this.gridDefsMap[viewId] || []).map((col) => (col.mobileHide ? { ...col, hide: isMobile } : col));
+        //
+        // 另外，手機螢幕寬度有限，pinned:"right" 的「操作」欄位會固定佔用一塊寬度，
+        // 導致可捲動的其餘欄位被壓得更窄；手機上改成不 pinned，讓「操作」欄跟著其他欄位一起橫向捲動
+        const columnDefs = (this.gridDefsMap[viewId] || []).map((col) => {
+            let next = col;
+            if (col.mobileHide) {
+                next = { ...next, hide: isMobile };
+            }
+            if (isMobile && next.pinned) {
+                next = { ...next, pinned: undefined };
+            }
+            return next;
+        });
         const self = this;
 
         const gridOptions = {
             columnDefs: columnDefs,
             rowData: rowData,
-            defaultColDef: { sortable: true, filter: true, resizable: true, editable: true },
+            // 手機上關閉 resizable：觸控裝置的拖曳手勢很容易誤觸欄位邊界的縮放熱區，
+            // 尤其欄位變窄之後熱區占比更高，一拖就把欄位擠壓成 0 寬造成內容重疊；
+            // 手機上本來就靠橫向捲動看完整表格，不需要讓使用者手動調欄寬
+            defaultColDef: { sortable: true, filter: true, resizable: !isMobile, editable: true },
             rowSelection: "single",
             animateRows: true,
             stopEditingWhenCellsLoseFocus: true,
@@ -1799,6 +1865,103 @@ class FinanceApp {
         this.elements.modalBody.innerHTML = "";
     }
 
+    // ==================== 自訂下拉選單 ====================
+    // 原生 <select> 展開後的選項清單是瀏覽器/OS 自己畫的，網頁 CSS 幾乎完全套不上去（手機上常常看起來
+    // 又小又不清楚，甚至跟頁面的橫向捲動版面衝突而跑版）。這裡改成：保留原本的 <select> 元素不刪
+    // （值、change 事件、既有綁定的邏輯全部不用動），只是把它藏起來，另外疊一個自己畫的按鈕+清單，
+    // 兩邊互相同步。這樣清單本身完全是我們自己的 HTML/CSS，样式在任何裝置上都一致。
+
+    // 頁面上所有「版本月份」「排序依據」「起/迄」等下拉選單都套用這個外觀
+    enhanceAllDropdowns() {
+        document.querySelectorAll(".sort-control select, #pdMonth").forEach((el) => this.enhanceSelectDropdown(el));
+    }
+
+    enhanceSelectDropdown(selectEl) {
+        if (!selectEl || selectEl._customDropdownWired) {
+            return;
+        }
+        selectEl._customDropdownWired = true;
+
+        const wrapper = document.createElement("div");
+        wrapper.className = "custom-select";
+        selectEl.parentNode.insertBefore(wrapper, selectEl);
+        wrapper.appendChild(selectEl);
+        selectEl.classList.add("custom-select-native");
+
+        const trigger = document.createElement("button");
+        trigger.type = "button";
+        trigger.className = "custom-select-trigger";
+        const triggerLabel = document.createElement("span");
+        triggerLabel.className = "custom-select-trigger-label";
+        const triggerArrow = document.createElement("span");
+        triggerArrow.className = "custom-select-trigger-arrow";
+        triggerArrow.textContent = "▾";
+        trigger.appendChild(triggerLabel);
+        trigger.appendChild(triggerArrow);
+        wrapper.appendChild(trigger);
+
+        const list = document.createElement("div");
+        list.className = "custom-select-list hidden";
+        wrapper.appendChild(list);
+
+        const closeList = () => {
+            list.classList.add("hidden");
+            trigger.classList.remove("open");
+        };
+
+        const syncFromSelect = () => {
+            list.innerHTML = "";
+            Array.from(selectEl.options).forEach((opt, idx) => {
+                const item = document.createElement("div");
+                item.className = "custom-select-option" + (idx === selectEl.selectedIndex ? " selected" : "");
+                item.textContent = opt.textContent;
+                item.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    if (selectEl.value !== opt.value) {
+                        selectEl.value = opt.value;
+                        selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+                    }
+                    closeList();
+                });
+                list.appendChild(item);
+            });
+            const selectedOpt = selectEl.options[selectEl.selectedIndex];
+            triggerLabel.textContent = selectedOpt ? selectedOpt.textContent : "";
+        };
+
+        trigger.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const isOpen = !list.classList.contains("hidden");
+            // 同一時間只開一個自訂下拉選單
+            document.querySelectorAll(".custom-select-list").forEach((el) => el.classList.add("hidden"));
+            document.querySelectorAll(".custom-select-trigger").forEach((el) => el.classList.remove("open"));
+            if (!isOpen) {
+                syncFromSelect();
+                list.classList.remove("hidden");
+                trigger.classList.add("open");
+            }
+        });
+
+        document.addEventListener("click", (e) => {
+            if (!wrapper.contains(e.target)) {
+                closeList();
+            }
+        });
+
+        // 外部程式重新產生 <select> 的 options 或改變 value 之後，呼叫這個讓自訂 UI 同步更新
+        selectEl._refreshCustomDropdown = syncFromSelect;
+
+        syncFromSelect();
+    }
+
+    // 在任何重新填充 <select> options 或改變其 value 的地方之後呼叫，讓自訂下拉 UI 顯示最新狀態
+    refreshCustomDropdown(selectId) {
+        const el = document.getElementById(selectId);
+        if (el && el._refreshCustomDropdown) {
+            el._refreshCustomDropdown();
+        }
+    }
+
     // ==================== 專案詳情頁 ====================
 
     canLeaveProjectDetail(message) {
@@ -1880,6 +2043,7 @@ class FinanceApp {
                 monthSelect.innerHTML = months.map((m) => `<option value="${m}">${m}</option>`).join("");
                 monthSelect.value = self.state.projectDetailMonth;
             }
+            self.refreshCustomDropdown("pdMonth");
 
             self.renderAssetChecklist();
             self.refreshAssetGrid();
@@ -2321,9 +2485,11 @@ class FinanceApp {
         const options = {
             columnDefs,
             rowData: rowData || [],
-            defaultColDef: { sortable: true, filter: true, resizable: true, editable: false },
+            defaultColDef: { sortable: true, filter: true, resizable: window.innerWidth > 767, editable: false },
             animateRows: true,
             stopEditingWhenCellsLoseFocus: true,
+            // 分類分析樞紐表的「＝ 合計 ＝」列用專屬 class 加底色標示，其他表格沒有 category 欄位或不會有這個值，不受影響
+            getRowClass: (params) => (params.data && params.data.category === "＝ 合計 ＝" ? "ca-total-row" : undefined),
         };
         if (typeof onCellValueChanged === "function") {
             options.onCellValueChanged = onCellValueChanged;
@@ -2349,6 +2515,7 @@ class FinanceApp {
             select.innerHTML = ['<option value="">全部月份</option>', ...months.map((m) => `<option value="${m}">${m}</option>`)].join("");
             select.value = months.includes(current) ? current : "";
             this.txFilters[viewId].month = select.value;
+            this.refreshCustomDropdown(cfg.month);
         }
     }
 
@@ -2459,7 +2626,7 @@ class FinanceApp {
             chart: {
                 scrollablePlotArea: {
                     minWidth: Math.max(categoryCount * pxPerCategory, minWidth),
-                    scrollPositionX: 1, // 預設捲到最右邊（最新月份）
+                    scrollPositionX: 0, // 預設捲到最左邊（最早月份），避免手機上初次進來時位置飄在中間
                 },
             },
             xAxisLabels: { rotation: -45 },
@@ -2615,6 +2782,18 @@ class FinanceApp {
 
     // ---------- 分類分析 ----------
 
+    // 分類分析「起/迄」的預設範圍：依月份時預設「今年 1 月 ~ 最新月份（本月）」；
+    // 依年份時維持原本行為（不限制範圍，顯示全部歷史年份），因為單一年份區間沒有對應的「當年度」概念
+    _defaultCategoryAnalysisRange(granularity) {
+        const now = new Date();
+        const currentYear = String(now.getFullYear());
+        if (granularity === "year") {
+            return { start: "", end: "" };
+        }
+        const currentMonth = String(now.getMonth() + 1).padStart(2, "0");
+        return { start: `${currentYear}-01`, end: `${currentYear}-${currentMonth}` };
+    }
+
     renderCategoryAnalysis() {
         var self = this;
         $.get("/api/finance/category-analysis", {
@@ -2651,6 +2830,8 @@ class FinanceApp {
             };
             fillSelect("caStart", self.categoryAnalysis.start || periods[0]);
             fillSelect("caEnd", self.categoryAnalysis.end || periods[periods.length - 1]);
+            self.refreshCustomDropdown("caStart");
+            self.refreshCustomDropdown("caEnd");
 
             document.getElementById("caModeExpense")?.classList.toggle("active", self.categoryAnalysis.mode === "expense");
             document.getElementById("caModeIncome")?.classList.toggle("active", self.categoryAnalysis.mode === "income");
@@ -2722,7 +2903,8 @@ class FinanceApp {
             data: periods.map((p) => Math.round(sums[cat][p] || 0)),
             color: palette[i % palette.length],
         }));
-        const title = (this.categoryAnalysis.mode === "income" ? "收入" : "支出") + "分類分析（點一下柱狀圖可依該月份篩選下方明細）";
+        // 操作說明拿掉：手機上標題文字太長會跟圖表區重疊，且這個提示不影響實際操作
+        const title = (this.categoryAnalysis.mode === "income" ? "收入" : "支出") + "分類分析";
         const mobileTweaks = this.getMobileChartTweaks(periods.length);
         this.state.charts["categoryAnalysisChart"] = Highcharts.chart("categoryAnalysisChart", {
             chart: {
@@ -2745,7 +2927,9 @@ class FinanceApp {
                 gridLineColor: "#424242",
                 labels: { style: { color: "#b0b0b0" }, formatter: function () { return self.formatAxisCurrency(this.value); } },
             },
-            legend: { itemStyle: { color: "#b0b0b0" }, itemHoverStyle: { color: "#ffffff" } },
+            // 分類數量一多，圖例會佔掉一大塊畫面（尤其手機），且點柱狀圖已經能篩選/查看下方明細，
+            // 圖例本身資訊量不高，直接關閉
+            legend: { enabled: false },
             tooltip: {
                 backgroundColor: "#2a2a2a",
                 borderColor: "#757575",
@@ -2794,14 +2978,25 @@ class FinanceApp {
         this.highlightCategoryAnalysisChartPeriod(this.categoryAnalysis.selectedPeriod);
     }
 
+    // 樞紐表的期間欄位 header 精簡化："2025-11" -> "25/11"、"2025" -> "25"，減少表頭寬度
+    _formatCaPeriodHeader(p) {
+        if (/^\d{4}-\d{2}$/.test(p)) {
+            return p.slice(2).replace("-", "/");
+        }
+        if (/^\d{4}$/.test(p)) {
+            return p.slice(2);
+        }
+        return p;
+    }
+
     // 未選取任何月份時：完整的 分類 x 期間 樞紐表
     renderCategoryPivotGrid(periods, categories, sums) {
         const cols = [{ field: "category", headerName: "分類", pinned: "left", minWidth: 140, flex: 1 }];
         periods.forEach((p) => {
             cols.push({
                 field: p,
-                headerName: p,
-                width: 120,
+                headerName: this._formatCaPeriodHeader(p),
+                width: 92,
                 valueFormatter: (params) => "NT$ " + Math.round(Number(params.value || 0)).toLocaleString(),
             });
         });
@@ -2865,8 +3060,9 @@ class FinanceApp {
             },
             {
                 field: "yearAvg",
-                headerName: `${year} 年度月均`,
-                width: 160,
+                // 年度已經顯示在上方「已選取」列，欄位 header 不用重複列出
+                headerName: "年度月均",
+                width: 140,
                 valueFormatter: (params) => "NT$ " + Math.round(Number(params.value || 0)).toLocaleString(),
             },
         ];
@@ -3078,11 +3274,76 @@ class FinanceApp {
                 select.innerHTML = months.map((m) => `<option value="${m}">${m}</option>`).join("");
                 select.value = self.state.accountSnapshotMonth;
             }
+            self.refreshCustomDropdown("accountSnapshotMonth");
         });
     }
 
+    // 版本月份變更時：重新抓該月份的帳戶資料，分類設定沿用已快取的，不用重打分類 API
     refreshAccountUI() {
+        var self = this;
         $("#account_balance").empty();
+        this.load_data("accounts").then(function () {
+            self.renderAccountListGrid();
+        });
+    }
+
+    // 抓「使用者用過的分類清單」＋「每個帳戶目前的分類」，快取起來給篩選下拉跟表格分類欄位用
+    loadAccountCategoryMap() {
+        var self = this;
+        return $.when($.get("/api/finance/account-categories"), $.get("/api/finance/account-categories/options")).then(function (mapRes, optionsRes) {
+            var mappings = mapRes[0] || [];
+            var options = optionsRes[0] || [];
+            var map = {};
+            mappings.forEach((m) => {
+                map[m.OrganizationName + " " + m.AccountName] = m.Category || "";
+            });
+            self.state.accountCategoryMap = map;
+            self.state.accountCategoryOptions = options;
+            self.populateAccountCategoryFilter();
+        });
+    }
+
+    populateAccountCategoryFilter() {
+        const select = document.getElementById("accountCategoryFilterSelect");
+        if (!select) return;
+        const options = this.state.accountCategoryOptions || [];
+        const current = this.state.accountCategoryFilter || "";
+
+        const optHtml = ['<option value="">全部分類</option>'];
+        options.forEach((c) => optHtml.push(`<option value="${c}">${c}</option>`));
+        optHtml.push('<option value="__uncategorized__">未分類</option>');
+        select.innerHTML = optHtml.join("");
+        select.value = current === "__uncategorized__" || options.includes(current) ? current : "";
+        this.state.accountCategoryFilter = select.value;
+        this.refreshCustomDropdown("accountCategoryFilterSelect");
+    }
+
+    // 帳戶總覽表格：把帳戶餘額資料跟分類 join 起來、依篩選條件過濾，並算出篩選後的總計
+    renderAccountListGrid() {
+        var self = this;
+        const map = this.state.accountCategoryMap || {};
+        const filter = this.state.accountCategoryFilter || "";
+
+        let rows = (this.data.account || []).map((a) => {
+            const cat = map[a.OrganizationName + " " + a.AccountName] || "";
+            return { ...a, Category: cat || "未分類" };
+        });
+
+        if (filter === "__uncategorized__") {
+            rows = rows.filter((r) => !map[r.OrganizationName + " " + r.AccountName]);
+        } else if (filter) {
+            rows = rows.filter((r) => r.Category === filter);
+        }
+
+        $("#account_balance").empty();
+        this.initGrids_by_viewId(rows, "account-list", "account_balance");
+
+        const total = rows.reduce((s, r) => s + Number(r.AccountBalance || 0), 0);
+        const totalEl = document.getElementById("accountListTotal");
+        if (totalEl) {
+            const label = filter ? `篩選後總計（${filter === "__uncategorized__" ? "未分類" : filter}）` : "總計";
+            totalEl.textContent = `${label}：${self.formatCurrency(total)}（共 ${rows.length} 筆）`;
+        }
     }
 
     openAccountBalanceModal(account) {
@@ -3124,6 +3385,178 @@ class FinanceApp {
                     alert("更新失敗：" + (xhr.responseJSON?.message || "請洽系統管理員"));
                 });
         });
+    }
+
+    // 「總覽 > 資產」頁面的「依分類資產分布」：純前端把最新月份的帳戶餘額
+    // 跟使用者在「設定 > 帳戶分類」設定的分類 join 起來分組加總，
+    // 完全不影響上面既有的資產/負債/淨資產統計卡片與圖表（那組是用餘額正負號判斷，兩套邏輯互不相干）
+    renderAssetCategoryBreakdown() {
+        var self = this;
+        var container = document.getElementById("assetCategoryBreakdownGrid");
+        if (!container) return;
+        $(container).empty();
+
+        $.get("/api/finance/accounts/months").then(function (months) {
+            var latestMonth = months && months[0] ? months[0] : "";
+            return $.when($.get("/api/finance/accounts", { month: latestMonth }), $.get("/api/finance/account-categories")).then(function (accountsRes, categoriesRes) {
+                var accounts = accountsRes[0] || [];
+                var categories = categoriesRes[0] || [];
+
+                var categoryMap = {};
+                categories.forEach((c) => {
+                    categoryMap[c.OrganizationName + " " + c.AccountName] = c.Category || "";
+                });
+
+                var totals = {};
+                accounts.forEach((a) => {
+                    var key = a.OrganizationName + " " + a.AccountName;
+                    var cat = categoryMap[key] || "未分類";
+                    totals[cat] = (totals[cat] || 0) + Number(a.AccountBalance || 0);
+                });
+
+                var rows = Object.keys(totals)
+                    .map((cat) => ({ category: cat, total: totals[cat] }))
+                    .sort((a, b) => b.total - a.total);
+
+                var cols = [
+                    { field: "category", headerName: "分類", flex: 1, minWidth: 140 },
+                    {
+                        field: "total",
+                        headerName: (latestMonth || "最新月份") + " 合計",
+                        width: 180,
+                        valueFormatter: (params) => self.formatCurrency(params.value),
+                        cellStyle: (params) => self.getCellStyle(params.value),
+                    },
+                ];
+
+                self.createDetailGrid("assetCategoryBreakdown", "assetCategoryBreakdownGrid", cols, rows);
+            });
+        });
+    }
+
+    // ---------- 設定：帳戶分類 ----------
+
+    // 帳戶分類頁面：把使用者所有帳戶（去重）跟目前的分類設定一起顯示，
+    // 分類欄位是一個下拉選單，選項＝之前用過的分類＋「➕ 新增分類...」
+    renderAccountCategoryGrid() {
+        var self = this;
+        $("#account_category_grid").empty();
+        $.when($.get("/api/finance/account-categories"), $.get("/api/finance/account-categories/options")).then(function (accountsRes, optionsRes) {
+            var accounts = accountsRes[0] || [];
+            var options = optionsRes[0] || [];
+            self.state.accountCategoryOptions = options;
+
+            var cols = [
+                { field: "OrganizationName", headerName: "銀行", flex: 1, minWidth: 120 },
+                { field: "AccountName", headerName: "帳戶", flex: 1, minWidth: 120 },
+                {
+                    field: "Category",
+                    headerName: "分類",
+                    width: 180,
+                    minWidth: 160,
+                    cellRenderer: (params) => self._accountCategoryCellRenderer(params),
+                },
+            ];
+
+            self.createDetailGrid("accountCategoryGrid", "account_category_grid", cols, accounts);
+        });
+    }
+
+    _accountCategoryCellRenderer(params) {
+        var self = this;
+        const row = params.data;
+        const current = row.Category || "";
+        const NEW_OPTION = "__new__";
+
+        const select = document.createElement("select");
+        select.style.width = "100%";
+        select.style.minHeight = "30px";
+        select.style.padding = "2px 6px";
+        select.style.borderRadius = "4px";
+        select.style.border = "1px solid #424242";
+        select.style.backgroundColor = "#2a2a2a";
+        select.style.color = "#ffffff";
+
+        const optionValues = [...self.state.accountCategoryOptions];
+        if (current && !optionValues.includes(current)) {
+            optionValues.push(current);
+        }
+        optionValues.sort((a, b) => a.localeCompare(b, "zh-Hant"));
+
+        const emptyOpt = document.createElement("option");
+        emptyOpt.value = "";
+        emptyOpt.textContent = "未分類";
+        select.appendChild(emptyOpt);
+
+        optionValues.forEach((opt) => {
+            const optionEl = document.createElement("option");
+            optionEl.value = opt;
+            optionEl.textContent = opt;
+            select.appendChild(optionEl);
+        });
+
+        const newOpt = document.createElement("option");
+        newOpt.value = NEW_OPTION;
+        newOpt.textContent = "➕ 新增分類...";
+        select.appendChild(newOpt);
+
+        select.value = current;
+
+        // 點選單本身不該觸發 ag-Grid 的 row click（這裡沒有綁 row click，但保留跟排除按鈕一致的防呆習慣）
+        select.addEventListener("click", (event) => event.stopPropagation());
+        select.addEventListener("change", (event) => {
+            event.stopPropagation();
+            const value = select.value;
+            if (value === NEW_OPTION) {
+                select.value = current; // 先還原顯示，等使用者在 modal 完成輸入或取消
+                self.openNewAccountCategoryModal(row);
+                return;
+            }
+            self.saveAccountCategory(row.OrganizationName, row.AccountName, value);
+        });
+
+        return select;
+    }
+
+    openNewAccountCategoryModal(row) {
+        var self = this;
+        const content = `
+        <div style="display:flex; flex-direction:column; gap:16px;">
+            <div style="color:#b0b0b0; font-size:13px;">
+                ${row.OrganizationName || ""}｜${row.AccountName || ""}
+            </div>
+            <div>
+                <label style="display:block; margin-bottom:8px; color:#b0b0b0;">新分類名稱</label>
+                <input type="text" id="newAccountCategoryName" maxlength="50" placeholder="例如：資產"
+                       style="width:100%; padding:12px; background-color:#2a2a2a; border:1px solid #757575; border-radius:8px; color:#fff; font-size:14px;">
+            </div>
+        </div>
+    `;
+        this.showModal("新增分類", content, () => {
+            const name = String(document.getElementById("newAccountCategoryName")?.value || "").trim();
+            if (!name) {
+                alert("請輸入分類名稱");
+                return;
+            }
+            self.closeModal();
+            self.saveAccountCategory(row.OrganizationName, row.AccountName, name);
+        });
+    }
+
+    saveAccountCategory(organizationName, accountName, category) {
+        var self = this;
+        return $.ajax({
+            url: "/api/finance/account-categories",
+            type: "PUT",
+            contentType: "application/json",
+            data: JSON.stringify({ organizationName, accountName, category }),
+        })
+            .done(function () {
+                self.renderAccountCategoryGrid();
+            })
+            .fail(function (xhr) {
+                alert("更新分類失敗：" + (xhr.responseJSON?.message || "請洽系統管理員"));
+            });
     }
 
     // ---------- 通用表單 ----------

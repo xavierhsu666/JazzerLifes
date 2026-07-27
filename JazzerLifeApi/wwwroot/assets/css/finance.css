@@ -666,31 +666,151 @@ button {
     font-weight: 700;
 }
 
+/* 版本月份／排序依據等下拉選單容器。
+   原本用高飽和度的青色底＋青色外框，滿頁都是同一種螢光框看起來很雜亂；
+   改成跟卡片、輸入框一致的深色中性風格，只在 hover/focus 時用主色點綴，畫面更乾淨統一 */
 .sort-control {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 10px;
+    padding: 5px 12px;
     border-radius: var(--radius-md);
-    background: rgba(0, 188, 212, 0.12);
-    border: 1px solid rgba(0, 188, 212, 0.34);
+    background: var(--color-tertiary);
+    border: 1px solid var(--color-gray-700);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.sort-control:hover {
+    border-color: var(--color-gray-500);
+}
+
+.sort-control:focus-within {
+    border-color: var(--color-accent-blue);
+    box-shadow: 0 0 0 2px rgba(0, 188, 212, 0.18);
 }
 
 .sort-label {
     color: var(--color-text-secondary);
     font-size: 0.75rem;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
 }
 
-.sort-control input,
-.sort-control select,
-#pdMonth {
-    min-height: 34px;
-    padding: 6px 10px;
+.sort-control input {
+    min-height: 32px;
+    padding: 4px 8px;
     border-radius: var(--radius-sm);
-    border: 1px solid var(--color-gray-700);
-    background-color: var(--color-tertiary);
+    border: 1px solid transparent;
+    background-color: transparent;
     color: var(--color-text-primary);
+    font-size: 0.85rem;
+}
+
+.sort-control input:focus {
+    outline: none;
+}
+
+/* ===== 自訂下拉選單（取代原生 select 展開清單，見 enhanceSelectDropdown） =====
+   原生 select 隱藏起來只保留狀態/change 事件，畫面上完全用自己的按鈕＋清單顯示，
+   這樣不管手機瀏覽器怎麼畫原生選單，樣式都是我們自己控制、保證一致 */
+.custom-select-native {
+    display: none;
+}
+
+.custom-select {
+    position: relative;
+    display: flex;
+    flex: 1;
+    min-width: 0;
+}
+
+.custom-select-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    width: 100%;
+    min-height: 32px;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    background-color: transparent;
+    color: var(--color-text-primary);
+    font-size: 0.85rem;
+    cursor: pointer;
+    text-align: left;
+}
+
+.custom-select-trigger:hover {
+    background-color: rgba(255, 255, 255, 0.04);
+}
+
+.custom-select-trigger.open {
+    border-color: var(--color-accent-blue);
+}
+
+.custom-select-trigger-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.custom-select-trigger-arrow {
+    flex: none;
+    font-size: 0.7rem;
+    color: var(--color-text-secondary);
+    transition: transform var(--transition-fast);
+}
+
+.custom-select-trigger.open .custom-select-trigger-arrow {
+    transform: rotate(180deg);
+}
+
+.custom-select-list {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    min-width: 100%;
+    max-height: 260px;
+    overflow-y: auto;
+    background: var(--color-tertiary);
+    border: 1px solid var(--color-gray-700);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    z-index: 3000;
+    padding: 4px;
+}
+
+.custom-select-list.hidden {
+    display: none;
+}
+
+.custom-select-option {
+    padding: 9px 12px;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-primary);
+    font-size: 0.85rem;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.custom-select-option:hover {
+    background-color: rgba(0, 188, 212, 0.14);
+}
+
+.custom-select-option.selected {
+    background-color: rgba(0, 188, 212, 0.22);
+    font-weight: 700;
+}
+
+/* 分類分析「起 – 迄」合併放在同一個 .sort-control 區塊裡，中間用一個小分隔線區隔 */
+.ca-range-group {
+    gap: 6px;
+}
+
+.ca-range-sep {
+    color: var(--color-text-secondary);
+    font-size: 0.75rem;
 }
 
 .pd-muted {
@@ -968,6 +1088,24 @@ button {
     border: 1px solid var(--color-gray-800);
 }
 
+/* 帳戶總覽：篩選後總計 */
+.account-list-total {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 16px;
+    margin-bottom: var(--spacing-md);
+    border-radius: var(--radius-md);
+    background: rgba(0, 188, 212, 0.12);
+    border: 1px solid rgba(0, 188, 212, 0.3);
+    color: var(--color-text-primary);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.account-list-total:empty {
+    display: none;
+}
+
 .ag-theme-quartz-dark {
     --ag-background-color: var(--color-secondary);
     --ag-foreground-color: var(--color-text-primary);
@@ -978,6 +1116,31 @@ button {
     --ag-selected-row-background-color: rgba(0, 188, 212, 0.2);
     height: 500px;
     width: 100%;
+}
+
+/* 表格「操作」欄位內的按鈕（排除、修改結餘、詳情/刪除…）
+   全域 .btn-primary/.btn-secondary/.btn-danger 在手機上有 min-height:44px 的觸控熱區規則，
+   但 ag-Grid 的列高是固定的，44px 的按鈕塞進較矮的儲存格會被上下擠壓變形；
+   改用專屬、較緊湊的尺寸，並用較高的選擇器優先權（.ag-theme-quartz-dark 前綴）蓋過全域規則 */
+.ag-theme-quartz-dark .btn-primary,
+.ag-theme-quartz-dark .btn-secondary,
+.ag-theme-quartz-dark .btn-danger {
+    padding: 4px 10px;
+    min-height: 28px;
+    font-size: 0.75rem;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+/* 分類分析樞紐表的「＝ 合計 ＝」列：用跳色底色跟一般資料列區隔，並加粗；
+   !important 是因為 ag-Grid 主題本身透過 CSS 變數控制奇偶列與 hover 底色，優先權比一般 class 選擇器高 */
+.ag-theme-quartz-dark .ca-total-row {
+    background-color: rgba(0, 188, 212, 0.18) !important;
+    font-weight: 700;
+}
+
+.ag-theme-quartz-dark .ca-total-row:hover {
+    background-color: rgba(0, 188, 212, 0.26) !important;
 }
 
 /* ==================== Modal ==================== */
@@ -1160,6 +1323,56 @@ button {
     display: none;
 }
 
+/* 「更多」bottom sheet：獨立於側邊欄之外的選單，收納「上傳」「設定」等不常用功能。
+   桌面版看不到觸發它的按鈕（.app-bottom-nav 本身就是 display:none），這裡不用另外限定手機才生效 */
+.more-menu-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 1600;
+}
+
+.more-menu-overlay.hidden {
+    display: none;
+}
+
+.more-menu {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--color-secondary);
+    border-top: 1px solid var(--color-gray-800);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    box-shadow: var(--shadow-lg);
+    padding: 8px;
+    /* 讓選單浮在底部導覽列上方，不要被蓋住 */
+    padding-bottom: calc(72px + env(safe-area-inset-bottom));
+    z-index: 1601;
+}
+
+.more-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    min-height: 48px;
+    border-radius: var(--radius-md);
+    color: var(--color-text-primary);
+    font-size: 0.95rem;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.more-menu-item:hover,
+.more-menu-item:active {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.more-menu-item .app-bottom-nav-icon {
+    font-size: 1.25rem;
+}
+
 /* 手機 (< 768px) */
 @media (max-width: 767px) {
     :root {
@@ -1288,25 +1501,56 @@ button {
         gap: var(--spacing-sm);
     }
 
-    .view-actions button {
+    /* 只針對 .view-actions 的「直接子層」按鈕（顯示已排除、儲存變更…）鋪滿寬度；
+       .mode-switch 內的切換按鈕是巢狀在裡面一層，不該被這條規則波及，避免整組被撐成超大按鈕 */
+    .view-actions > button {
         flex: 1;
     }
 
     /* 觸控熱區優化：手機上所有可點擊控制項至少 44px 高，符合基本觸控可用性建議 */
     .btn-primary,
     .btn-secondary,
-    .btn-danger,
-    .mode-switch button {
+    .btn-danger {
         min-height: 44px;
     }
 
+    /* mode-switch（支出/收入、依月份/依年份等切換鈕）在手機上維持可點但更緊湊：
+       兩顆鈕平分寬度、字級與 padding 縮小，避免像原本一樣又寬又高，一組佔掉太多垂直空間 */
+    .mode-switch {
+        width: 100%;
+    }
+
+    .mode-switch button {
+        flex: 1;
+        min-width: 0;
+        min-height: 36px;
+        padding: 7px 8px;
+        font-size: 0.8rem;
+    }
+
+    .ca-range-group {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .ca-range-group .custom-select {
+        flex: 1;
+        min-width: 0;
+    }
+
     .filter-input,
-    .sort-control select,
+    .sort-control .custom-select-trigger,
     .sort-control input,
     .pd-form input,
-    .pd-form select,
-    #pdMonth {
+    .pd-form select {
         min-height: 44px;
+    }
+
+    .custom-select-option {
+        padding: 12px;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
     }
 
     .filter-input {
