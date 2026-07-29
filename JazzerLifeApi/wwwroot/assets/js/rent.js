@@ -164,18 +164,7 @@ var RentApp = {
         });
 
         $("#btnCopyWholeTable").on("click", function () {
-            var $btn = $(this);
-            $btn.prop("disabled", true).text("複製中...");
-            self.copyElementAsImage(document.getElementById("billCaptureArea"), "rent_bill_" + self.state.billMonth)
-                .then(function (mode) {
-                    $btn.text(mode === "clipboard" ? "已複製到剪貼簿！" : "已下載圖片");
-                    setTimeout(function () { $btn.text("複製整表圖片"); }, 1800);
-                })
-                .catch(function () {
-                    alert("複製圖片失敗，請確認瀏覽器支援度或改用下載");
-                    $btn.text("複製整表圖片");
-                })
-                .finally(function () { $btn.prop("disabled", false); });
+            self.copyWholeTable($(this));
         });
 
         $("#btnCopyElectricityOnly").on("click", function () {
@@ -422,6 +411,81 @@ var RentApp = {
             appliedCount++;
         });
         return appliedCount;
+    },
+
+    /** 複製整表圖片：跟「複製電費圖片」一樣，另外組一份離屏的靜態表格（自然寬度、不放在
+     * overflow-x:auto 的捲動容器內）再擷取，不要直接擷取畫面上那個會橫向捲動的即時表格。
+     * 原本直接擷取畫面上的 #billCaptureArea，在手機上因為它的父層 .table-container 是
+     * overflow-x:auto，表格實際寬度（12 欄）遠超過手機螢幕寬度，html2canvas 對「內容比目前
+     * 可視窗口寬、且包在可捲動容器裡」的情境常常算錯尺寸，導致複製失敗或圖片被裁切；
+     * 「複製電費圖片」／「複製單一房間」原本就是各自組一份獨立的離屏表格才能穩定運作，這裡統一比照辦理 */
+    copyWholeTable: function ($btn) {
+        var self = this;
+        $btn.prop("disabled", true).text("複製中...");
+
+        var rowsHtml = "";
+        $("#billTableBody tr").each(function () {
+            var $tr = $(this);
+            var roomId = Number($tr.data("room-id"));
+            if (!roomId) return;
+            var row = self.state.billRows.find(function (r) { return r.RoomId === roomId; });
+            if (!row) return;
+
+            var currentReading = parseFloat($tr.find(".current-reading-input").val());
+            if (isNaN(currentReading)) currentReading = 0;
+            var publicElectricityFee = parseFloat($tr.find(".public-electricity-input").val());
+            if (isNaN(publicElectricityFee)) publicElectricityFee = 0;
+            var note = $tr.find(".note-input").val() || "";
+            var isPaid = $tr.find(".paid-badge").hasClass("is-paid");
+            var paidText = row.BillId ? (isPaid ? "已收" : "未收") : "尚未建立";
+
+            var usage = currentReading - row.PrevReading;
+            var fee = usage * row.RateSnapshot;
+            var totalElectricity = fee + publicElectricityFee; // 總電費 = 本月電費 + 公共電費
+            var total = totalElectricity + row.RentSnapshot + row.AdjustmentSnapshot;
+
+            rowsHtml += "<tr>" +
+                "<td>" + self.escapeHtml(row.RoomAlias) + "</td>" +
+                "<td>" + self.fmtNum(row.PrevReading) + "</td>" +
+                "<td>" + self.fmtNum(currentReading) + "</td>" +
+                "<td>" + self.fmtNum(usage) + "</td>" +
+                "<td>" + self.fmtMoney(publicElectricityFee) + "</td>" +
+                "<td>" + self.fmtMoney(totalElectricity) + "</td>" +
+                "<td>" + self.fmtMoney(row.RentSnapshot) + "</td>" +
+                "<td>" + self.fmtMoney(row.AdjustmentSnapshot) + "</td>" +
+                "<td>" + self.fmtMoney(total) + "</td>" +
+                "<td>" + paidText + "</td>" +
+                "<td>" + self.escapeHtml(note) + "</td>" +
+                "</tr>";
+        });
+
+        var totalAmountText = $("#billTotalAmount").text();
+
+        var $temp = $('<div class="offscreen-capture" id="tempWholeTableCapture"></div>');
+        var innerHtml = '<div id="tempWholeTableInner" style="background-color:var(--color-secondary);padding:24px;width:1080px;">' +
+            '<div class="bill-capture-title">' + self.state.billMonth + ' 電費／房租帳單</div>' +
+            '<table class="bill-table"><thead><tr>' +
+            "<th>房間</th><th>上月讀數</th><th>本月讀數</th><th>用電度數</th><th>公共電費</th><th>總電費</th>" +
+            "<th>房租</th><th>調整金額</th><th>應繳合計</th><th>繳費狀態</th><th>備註</th>" +
+            "</tr></thead><tbody>" + rowsHtml + "</tbody>" +
+            '<tfoot><tr><td colspan="8">總計</td><td>' + self.escapeHtml(totalAmountText) + '</td><td colspan="2"></td></tr></tfoot>' +
+            "</table></div>";
+        $temp.html(innerHtml);
+        $("body").append($temp);
+
+        self.copyElementAsImage(document.getElementById("tempWholeTableInner"), "rent_bill_" + self.state.billMonth)
+            .then(function (mode) {
+                $btn.text(mode === "clipboard" ? "已複製到剪貼簿！" : "已下載圖片");
+                setTimeout(function () { $btn.text("複製整表圖片"); }, 1800);
+            })
+            .catch(function () {
+                alert("複製圖片失敗，請確認瀏覽器支援度或改用下載");
+                $btn.text("複製整表圖片");
+            })
+            .finally(function () {
+                $temp.remove();
+                $btn.prop("disabled", false);
+            });
     },
 
     /** 複製單一房間帳單：組一份只有該房間的迷你表格，離屏渲染後擷取成圖片 */

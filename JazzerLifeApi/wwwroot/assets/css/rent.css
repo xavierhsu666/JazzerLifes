@@ -325,19 +325,9 @@ button { border: none; background: none; cursor: pointer; font-family: inherit; 
        改用 class 統一管理，手機版放大到跟輸入框視覺上一致 */
     .month-select-label { font-size: 16px; }
 
-    /* 表格第一欄（房間別名／期間）用 sticky 固定在左邊，橫向捲動時仍看得到是哪一列，
-       避免捲到後面幾欄後忘記自己在看哪個房間。
-       注意：sticky 儲存格搭配 border-collapse:collapse 的表格，在 Safari/Chrome 上背景常無法完整覆蓋，
-       捲動時會看到後方欄位的顏色透出來（很像背景是透明的），因此表格已改用 border-collapse:separate，
-       這裡額外加 background-clip 確保 sticky 欄位背景是完全不透明、有正確覆蓋底層內容 */
-    .bill-table th:first-child, .bill-table td:first-child,
-    .room-table th:first-child, .room-table td:first-child {
-        position: sticky; left: 0; z-index: 2;
-        background-color: var(--color-secondary);
-        background-clip: padding-box;
-        box-shadow: 2px 0 4px rgba(0, 0, 0, 0.35);
-    }
-    .bill-table thead th:first-child, .room-table thead th:first-child { z-index: 3; }
+    /* 表格第一欄原本想用 sticky 固定在左邊方便橫向捲動時對照房間，
+       但 html2canvas 對 position:sticky 支援不佳，複製圖片時會把該欄擠到最後一欄甚至整欄消失，
+       即使擷取前後切換 class 暫時關閉仍不穩定，索性拿掉 sticky，改回一般橫向捲動即可 */
 
     /* 輸入框字體務必 >= 16px，否則 iOS Safari 點擊輸入框時會自動放大整個頁面（惱人的內建行為），
        這裡用固定 px（不用 rem），才不會被 480px 斷點把 html 字體縮到 14px 時連帶縮小 */
