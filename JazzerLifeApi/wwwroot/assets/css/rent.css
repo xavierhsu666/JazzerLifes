@@ -171,6 +171,7 @@ button { border: none; background: none; cursor: pointer; font-family: inherit; 
 }
 
 .month-select-row, .property-select-row { display: flex; align-items: center; gap: var(--spacing-sm); flex-wrap: wrap; }
+.month-select-label { font-size: 0.8rem; color: var(--color-text-secondary); }
 .month-input, .property-select {
     min-height: 40px; padding: 8px 12px; border-radius: var(--radius-md);
     background-color: var(--color-tertiary); color: var(--color-text-primary);
@@ -183,7 +184,7 @@ button { border: none; background: none; cursor: pointer; font-family: inherit; 
    會導致複製出來的圖片缺列；房間數量本來就不多，改用一般 <table> 最單純可靠，也最好排版成帳單樣式 */
 #billCaptureArea { background-color: var(--color-secondary); border-radius: var(--radius-lg); padding: var(--spacing-lg); }
 .bill-capture-title { font-size: 1.1rem; font-weight: 700; margin-bottom: var(--spacing-md); }
-.bill-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.bill-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.875rem; }
 .bill-table th, .bill-table td { padding: 10px 8px; border-bottom: 1px solid var(--color-gray-800); text-align: right; white-space: nowrap; }
 .bill-table th:first-child, .bill-table td:first-child { text-align: left; }
 .bill-table thead th { color: var(--color-text-secondary); font-weight: 600; font-size: 0.8rem; }
@@ -209,8 +210,8 @@ button { border: none; background: none; cursor: pointer; font-family: inherit; 
 .offscreen-capture { position: absolute; left: -9999px; top: 0; }
 
 /* ==================== Tab2：房間設定 ==================== */
-.room-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
-.room-table th, .room-table td { padding: 10px 8px; border-bottom: 1px solid var(--color-gray-800); text-align: right; }
+.room-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.875rem; }
+.room-table th, .room-table td { padding: 10px 8px; border-bottom: 1px solid var(--color-gray-800); text-align: right; white-space: nowrap; }
 .room-table th:first-child, .room-table td:first-child { text-align: left; }
 .room-table thead th { color: var(--color-text-secondary); font-weight: 600; font-size: 0.8rem; }
 .room-table input[type="text"], .room-table input[type="number"] {
@@ -227,6 +228,10 @@ button { border: none; background: none; cursor: pointer; font-family: inherit; 
     border-radius: var(--radius-lg); padding: var(--spacing-lg); margin-bottom: var(--spacing-lg);
     align-items: end;
 }
+/* 主表電費表單只有 4 個欄位，用獨立 class 覆蓋（而非 inline style），
+   這樣手機版的 .add-room-form { grid-template-columns: 1fr } 才蓋得過去——
+   inline style 的優先權比外部 CSS（含 media query）都高，用 inline style 會導致手機版永遠疊不成單欄 */
+.add-room-form--4col { grid-template-columns: repeat(4, minmax(0, 1fr)) auto; }
 .add-room-form label { display: grid; gap: 6px; color: var(--color-text-secondary); font-size: 0.85rem; }
 .add-room-form input {
     min-height: 40px; padding: 10px 12px; border-radius: var(--radius-md);
@@ -294,11 +299,74 @@ button { border: none; background: none; cursor: pointer; font-family: inherit; 
 
     .btn-primary, .btn-secondary, .btn-danger { min-height: 44px; }
     .add-room-form { grid-template-columns: 1fr; }
-    /* 手機上表格改靠橫向捲動看完整內容，比照 finance/car 手機版慣例 */
-    .table-container { overflow-x: auto; }
+    /* 手機上表格改靠橫向捲動看完整內容，比照 finance/car 手機版慣例；
+       -webkit-overflow-scrolling 讓 iOS 捲動有慣性，不會像預設那樣卡頓 */
+    .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+    /* 頂部導覽列：標題 + 物件下拉選單在窄螢幕容易擠在一起，標題截斷、下拉選單吃滿剩餘寬度 */
+    .navbar-content .view-title { font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 38%; }
+    .property-select-row { flex: 1; min-width: 0; }
+    .property-select { width: 100%; min-width: 0; }
+
+    /* Tab1/Tab2/Tab3 上方操作按鈕：手機版改用兩欄等寬 grid，不再讓按鈕依文字長度長大小不一，
+       月份選擇跟「儲存」單獨佔滿一整排，只有單一按鈕（如公共電費頁的「重新整理」）也佔滿整排，
+       方便用拇指點擊，也讓最重要的「儲存本月帳單」更顯眼 */
+    .view-actions {
+        display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-sm);
+    }
+    .view-actions .month-select-row,
+    .view-actions button#btnSaveBill,
+    .view-actions button:only-of-type {
+        grid-column: 1 / -1;
+    }
+    .view-actions button { width: 100%; min-width: 0; }
+
+    /* 「月份」標籤原本用行內樣式縮小到 0.8rem，跟旁邊放大後的月份輸入框比起來明顯過小，
+       改用 class 統一管理，手機版放大到跟輸入框視覺上一致 */
+    .month-select-label { font-size: 16px; }
+
+    /* 表格第一欄（房間別名／期間）用 sticky 固定在左邊，橫向捲動時仍看得到是哪一列，
+       避免捲到後面幾欄後忘記自己在看哪個房間。
+       注意：sticky 儲存格搭配 border-collapse:collapse 的表格，在 Safari/Chrome 上背景常無法完整覆蓋，
+       捲動時會看到後方欄位的顏色透出來（很像背景是透明的），因此表格已改用 border-collapse:separate，
+       這裡額外加 background-clip 確保 sticky 欄位背景是完全不透明、有正確覆蓋底層內容 */
+    .bill-table th:first-child, .bill-table td:first-child,
+    .room-table th:first-child, .room-table td:first-child {
+        position: sticky; left: 0; z-index: 2;
+        background-color: var(--color-secondary);
+        background-clip: padding-box;
+        box-shadow: 2px 0 4px rgba(0, 0, 0, 0.35);
+    }
+    .bill-table thead th:first-child, .room-table thead th:first-child { z-index: 3; }
+
+    /* 輸入框字體務必 >= 16px，否則 iOS Safari 點擊輸入框時會自動放大整個頁面（惱人的內建行為），
+       這裡用固定 px（不用 rem），才不會被 480px 斷點把 html 字體縮到 14px 時連帶縮小 */
+    .bill-table input, .room-table input,
+    .month-input, .property-select,
+    .add-room-form input {
+        font-size: 16px;
+    }
+
+    /* 表格內文字（非輸入框）在手機上原本沿用桌機的 0.875rem，字級偏小不好讀，
+       這裡也用固定 px，避免又被 480px 斷點的 html 縮字連帶再縮一次 */
+    .bill-table, .room-table { font-size: 15px; }
+    .bill-table thead th, .room-table thead th { font-size: 13px; }
+
+    /* 已收/未收、單列複製按鈕在手機上加大點擊熱區，避免誤觸旁邊的輸入框 */
+    .paid-badge { padding: 8px 14px; min-height: 36px; }
+    .row-copy-btn { padding: 8px 12px; min-height: 36px; }
+
+    /* Tab2 房間設定的「儲存／退租」兩個按鈕原本只靠一個空白字元隔開，
+       在窄螢幕上會被表格版面擠到自動換行，看起來像直向堆疊、又大又難點；
+       改用 flex 容器橫向排列並縮小尺寸，讓兩顆按鈕維持左右並排 */
+    .row-actions { display: flex; flex-wrap: nowrap; gap: 6px; }
+    .row-actions button { min-height: 36px; padding: 6px 12px; font-size: 13px; white-space: nowrap; }
 }
 
 @media (max-width: 480px) {
     html { font-size: 14px; }
     .table-container { padding: var(--spacing-sm); }
+    .bill-table th, .bill-table td, .room-table th, .room-table td { padding: 8px 6px; }
+    .bill-table input[type="number"], .bill-table input[type="text"],
+    .room-table input[type="number"], .room-table input[type="text"] { min-width: 64px; }
 }

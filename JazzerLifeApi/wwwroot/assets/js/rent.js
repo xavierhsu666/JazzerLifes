@@ -611,8 +611,10 @@ var RentApp = {
                 '<td><input type="number" step="1" class="room-sort-input" value="' + r.SortOrder + '" /></td>' +
                 '<td>' + (r.IsActive ? "啟用中" : "已退租") + '</td>' +
                 '<td class="action-col">' +
-                '<button type="button" class="btn-secondary btn-save-room">儲存</button> ' +
+                '<div class="row-actions">' +
+                '<button type="button" class="btn-secondary btn-save-room">儲存</button>' +
                 '<button type="button" class="btn-danger btn-toggle-room-active">' + (r.IsActive ? "退租" : "啟用") + '</button>' +
+                '</div>' +
                 '</td>' +
                 '</tr>';
         });

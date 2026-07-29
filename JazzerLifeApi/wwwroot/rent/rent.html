@@ -89,7 +89,7 @@
           <h2 class="view-title">電費計算</h2>
           <div class="view-actions">
             <div class="month-select-row">
-              <label for="billMonthInput" style="font-size:0.8rem;color:var(--color-text-secondary);">月份</label>
+              <label for="billMonthInput" class="month-select-label">月份</label>
               <input type="month" id="billMonthInput" class="month-input" />
             </div>
             <button class="btn-secondary" id="btnReloadBill">重新整理</button>
@@ -197,7 +197,7 @@
           <!-- 動態生成：試算明細 -->
         </div>
 
-        <form class="add-room-form" id="masterMeterForm" style="grid-template-columns: repeat(4, minmax(0, 1fr)) auto;">
+        <form class="add-room-form add-room-form--4col" id="masterMeterForm">
           <label>期間（主表帳單對應月份）
             <input type="month" id="masterMonthInput" required />
           </label>
