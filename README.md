@@ -1,6 +1,6 @@
 # JazzerLife
 
-個人生活管理系統，整合**車輛管理**、**財務管理**、**總體經濟溫度計**與**租屋處電費管理**四大功能模組，透過 ASP.NET Core Web API 提供服務，前端為純 HTML + jQuery + ag-Grid + Highcharts 打造的儀表板介面。
+個人生活管理系統，整合**車輛管理**、**財務管理**、**總體經濟溫度計**、**租屋處電費管理**與**交易日誌**五大功能模組，透過 ASP.NET Core Web API 提供服務，前端為純 HTML + jQuery + ag-Grid + Highcharts 打造的儀表板介面。
 
 > 本專案由舊版 ASP.NET Framework（.asmx Web Service）+ 直接 SQL 拼接查詢的架構，逐步安全重寫為 ASP.NET Core + Entity Framework Core 架構。
 
@@ -76,6 +76,23 @@
 > **手機版優化**：表格文字、頂部操作按鈕（重新整理／帶入公共電費／複製圖片等）均加大並改為兩欄等寬排列；房間設定的「儲存／退租」改為橫向並排的小按鈕，避免在窄螢幕上換行堆疊；表格改為單純橫向捲動（原本第一欄嘗試用 `position: sticky` 固定，但與 `html2canvas` 擷取圖片衝突，已移除）。
 >
 > **複製圖片穩定性**：整表／單一房間／僅電費相關欄位三種複製，皆改為另外組一份離屏、固定寬度、不放在可捲動容器內的靜態表格再交給 `html2canvas` 擷取（而非直接擷取畫面上會橫向捲動的即時表格），避免手機窄螢幕下內容寬度超出可視範圍造成擷取失敗或裁切。
+
+### 📈 交易日誌（Trading Journal）
+
+| 功能 | 說明 |
+|---|---|
+| 交易紀錄 | 一筆代表一次已配對好的完整進場+出場交易；支援手動新增/編輯/刪除，也可由匯入資料自動產生 |
+| 資料匯入 - cTrader Records | 匯入 IC Markets cTrader 平台匯出的「Records」報表（`.xlsx`），含時區轉換（`timezoneOffsetHours`，預設 UTC+8） |
+| 資料匯入 - TradingView 訂單 | 匯入 TradingView 訂單明細（`.csv`），依時間/商品/方向/數量比對回填進場時間、進場價、出場價；並依訂單「種類」欄位判斷出場方式（停損/停利/手動） |
+| 績效總覽 | 總損益、勝率、獲利因子、平均賺賠比、平均持倉時間等 KPI，資金曲線走勢圖 |
+| 分類統計 | 依商品、策略標籤、出場方式分別統計筆數/總損益/勝率 |
+| 隱含成本分析 | 用進出場價格＋方向反推毛損益，與實際淨損益比較算出隱含手續費/庫存費 |
+| 滑價分析 | 停損/停利觸發價與實際成交價的差，隨匯入自動計算 |
+| 策略標籤 | 下拉選單管理（新增/停用），交易紀錄可標記策略並填寫文字心得 |
+
+> 交易資料無法用單一 Position ID 比對（cTrader 與 TradingView 是各自獨立的內部編號），改用商品＋數量＋時間相近度做配對，較不依賴特定券商格式。
+>
+> 隱含成本分析的合約乘數（每手對應商品單位數）目前僅 BTCUSD 經實際交易驗證為 1，其餘商品暫預設 1，可能不準確，介面會顯示提示文字。
 
 ---
 
@@ -223,12 +240,17 @@ JazzerLifeApi/
 │   ├── RentPropertyEndpoints.cs     # 出租物件 CRUD
 │   ├── RentRoomEndpoints.cs         # 房間設定 CRUD（含軟刪除/退租）
 │   ├── RentBillEndpoints.cs         # 月度帳單查詢/批次儲存/繳費狀態切換
-│   └── RentMasterMeterEndpoints.cs  # 主表電費紀錄 CRUD + 公共電費試算邏輯
+│   ├── RentMasterMeterEndpoints.cs  # 主表電費紀錄 CRUD + 公共電費試算邏輯
+│   ├── TradeEndpoints.cs            # 交易紀錄 CRUD（含隱含成本計算 TradeCostCalculator）
+│   ├── StrategyTagEndpoints.cs      # 策略標籤 CRUD（軟刪除）
+│   ├── TradeImportEndpoints.cs      # cTrader Records / TradingView 訂單匯入解析
+│   └── TradeAnalysisEndpoints.cs    # 交易績效統計/分類統計/隱含成本分析
 ├── wwwroot/                         # 靜態前端頁面
 │   ├── car.html / assets/js/car.js         # 車輛管理前端
 │   ├── finance.html / assets/js/finance.js # 財務管理前端
 │   ├── macro.html / assets/js/macro.js     # 總經溫度計前端
 │   ├── rent/rent.html / assets/js/rent.js  # 租屋處電費管理前端
+│   ├── trading/trading.html / assets/js/trading.js # 交易日誌前端
 │   └── signin.html / assets/js/signin.js   # 登入頁
 ├── Program.cs                       # 應用程式進入點，服務註冊、路由掛載
 ├── HangfireAuthFilter.cs            # Hangfire Dashboard 授權過濾器
@@ -243,7 +265,7 @@ scripts/
 ├── fetch_tw_gov.py         # 擷取台灣官方開放資料指標
 ├── fetch_yahoo.py          # 擷取 Yahoo Finance 市場資產指標（黃金/費半/台股，非官方API）
 ├── tw_gov_sources.json     # 台灣資料來源設定（url/欄位對應）
-├── sql/                    # MACRO / RENT schema 建立與追加異動腳本
+├── sql/                    # MACRO / RENT / TRADING schema 建立與追加異動腳本
 └── test_task.py            # Hangfire 測試腳本
 ```
 
@@ -312,6 +334,21 @@ scripts/
 | GET/POST/DELETE | `/api/rent/master-meter` | 主表（母表）電費紀錄查詢/新增更新（upsert）/刪除 |
 | GET | `/api/rent/public-electricity-estimate` | 試算公共電費（`currentMonthUsage` 選填，優先採用前端即時輸入值） |
 
+### 交易日誌
+
+| Method | 路徑 | 說明 |
+|---|---|---|
+| GET/POST/PUT/DELETE | `/api/trading/trades` | 交易紀錄 CRUD（支援依商品/來源/策略標籤/待檢查篩選） |
+| GET/POST/PUT/DELETE | `/api/trading/strategy-tags` | 策略標籤 CRUD（軟刪除，使用中標籤禁止刪除） |
+| POST | `/api/trading/import/ctrader-records` | 匯入 cTrader Records（`.xlsx`），`timezoneOffsetHours` 選填（預設 8） |
+| POST | `/api/trading/import/tradingview-orders` | 匯入 TradingView 訂單（`.csv`），比對回填進場時間/價格/出場方式/滑價，`toleranceMinutes` 選填（預設 10） |
+| GET | `/api/trading/analysis/summary` | 績效總覽 KPI（總損益/勝率/獲利因子/平均賺賠比/平均持倉時間） |
+| GET | `/api/trading/analysis/equity-curve` | 資金曲線（累積損益走勢） |
+| GET | `/api/trading/analysis/by-symbol` | 依商品分類統計 |
+| GET | `/api/trading/analysis/by-tag` | 依策略標籤分類統計 |
+| GET | `/api/trading/analysis/by-exit-reason` | 依出場方式（停損/停利/手動/未知）分類統計 |
+| GET | `/api/trading/analysis/cost-summary` | 隱含成本分析（毛損益 vs 淨損益）＋平均滑價 |
+
 ### 報表工具
 
 | Method | 路徑 | 說明 |
@@ -366,6 +403,8 @@ Start-WebAppPool -Name "<正式環境集區名稱>"
 - IIS 部署時，若 `PythonExePath` 指向個人使用者的 AppData 路徑，App Pool 虛擬帳號預設無權限存取，需另外用 `icacls` 授權（詳見 `JazzerLife_環境設定文件.md` 第六節）。
 - 租屋處電費管理的「公共電費」試算假設主表（母表）為雙月抄表：需使用者持續在「公共電費」頁籤手動登記主表讀數，且該筆紀錄的期間需與電費月相同（代表涵蓋當月＋上月的合計用電），試算才會準確；未登記時系統會直接以 0 帶入，不會阻擋操作。
 - 租屋處電費管理目前僅支援使用者名下第一筆出租物件的前端切換 UI，資料庫已可支援多物件，未來如需擴充多物件切換僅需前端調整。
+- 交易日誌的隱含成本分析（毛損益 vs 淨損益反推手續費/庫存費）依賴每個商品的合約乘數，目前僅 BTCUSD 經實際交易驗證為 1，其餘商品暫預設 1，可能不準確；累積更多商品實際交易資料後可擴充 `TradeEndpoints.cs` 內的 `TradeCostCalculator.ContractMultipliers` 對照表。
+- 交易日誌的 cTrader Records 與 TradingView 訂單並非以共同 ID 比對（兩個平台的內部編號互不相通），改用商品＋數量＋時間相近度配對，若同時間有多筆相同商品/數量的交易可能配對錯誤，建議搭配「待檢查」標記人工複核。
 
 ---
 
