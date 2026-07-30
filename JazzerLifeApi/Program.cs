@@ -83,6 +83,10 @@ app.MapRentPropertyEndpoints();
 app.MapRentRoomEndpoints();
 app.MapRentBillEndpoints();
 app.MapRentMasterMeterEndpoints();
+app.MapTradeEndpoints();
+app.MapStrategyTagEndpoints();
+app.MapTradeImportEndpoints();
+app.MapTradeAnalysisEndpoints();
 
 var summaries = new[]
 {

@@ -30,7 +30,14 @@ namespace JazzerLifeApi.Endpoints
 				var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
 				var principal = new ClaimsPrincipal(identity);
 
-				await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
+				// 記住我：勾選時簽發持久化 Cookie（IsPersistent），關閉瀏覽器後仍維持登入狀態；
+				// 未勾選則維持原本的 Session Cookie，關閉瀏覽器即失效。
+				var authProps = new AuthenticationProperties
+				{
+					IsPersistent = req.RememberMe
+				};
+
+				await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, authProps);
 
 				return Results.Ok(new { message = "登入成功", userId = user.UserId, account = user.UserName });
 			});
@@ -55,5 +62,5 @@ namespace JazzerLifeApi.Endpoints
 		}
 	}
 
-	public record LoginRequest(string Account, string Password);
+	public record LoginRequest(string Account, string Password, bool RememberMe = false);
 }

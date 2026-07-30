@@ -1,7 +1,8 @@
 # JazzerLife 環境設定文件
 
-**最後更新：** 2026 年 7 月 29 日（v8：租屋處電費管理模組複製圖片穩定性修正 — 整表/單一房間/電費明細三種複製皆改為離屏靜態表格擷取，並移除與 html2canvas 衝突的 sticky 房間欄位）
+**最後更新：** 2026 年 7 月 30 日（v9：新增交易日誌模組 — cTrader Records + TradingView 訂單匯入分析，含出場方式分類/隱含成本/滑價分析，含 TRADING schema 部署方式）
 **歷史版本：**
+- v8（2026 年 7 月 29 日）：租屋處電費管理模組複製圖片穩定性修正 — 整表/單一房間/電費明細三種複製皆改為離屏靜態表格擷取，並移除與 html2canvas 衝突的 sticky 房間欄位
 - v7（2026 年 7 月 29 日）：租屋處電費管理模組手機版 UI 優化 — 表格加大、操作按鈕排版調整（原同時嘗試的 sticky 房間欄位固定，已於 v8 移除）
 - v6（2026 年 7 月 28 日）：新增租屋處電費管理模組 — 房間房租/電費計算、公共電費雙月抄表試算，含 RENT schema 部署方式
 **用途：** 記錄伺服器、IIS、資料庫、部署流程與已知眉角，供之後接續開發或交接使用。
@@ -97,6 +98,13 @@
 > 2. `scripts/sql/rent_schema_add_public_electricity_2026-07-27.sql`（`RoomBill` 新增 `PublicElectricityFee` 欄位；新增 `MasterMeterReading` 表，供公共電費試算用）
 >
 > 兩支皆內含 `IF NOT EXISTS` 防呆、可重複執行，且第 2 支依賴第 1 支已先執行過。結構備份分別存於 `db_backup/rent_schema_backup_2026-07-27.md`、`db_backup/rent_schema_add_public_electricity_backup_2026-07-27.md`。**測試機與正式機目前皆尚未執行**，部署前務必先於 SSMS 手動跑過這兩支腳本，否則 `/api/rent/*` 系列 API 會全部失敗。
+
+> **TRADING schema（交易日誌模組，新增）部署方式：** 需在部署前於 SSMS 對 JazzerLife 資料庫依序手動執行：
+> 1. `scripts/sql/trading_schema.sql`（建立 TRADING schema，共 2 張表：`StrategyTag`／`Trade`）
+> 2. `scripts/sql/trading_schema_add_ctrader_records_2026-07-30.sql`（`EntryTime` 改為可為 NULL，新增 cTrader Records 匯入用的自然鍵唯一索引）
+> 3. `scripts/sql/trading_schema_add_exit_quality_2026-07-30.sql`（`Trade` 新增 `ExitReason`、`ExitSlippage` 欄位，供出場方式分類與滑價分析）
+>
+> 三支皆內含 `IF NOT EXISTS` 防呆、可重複執行，且依序有相依關係（第 2、3 支皆假設第 1 支已先執行過）。結構備份分別存於 `db_backup/trading_schema_backup_2026-07-30.md`、`db_backup/trading_schema_add_ctrader_records_backup_2026-07-30.md`、`db_backup/trading_schema_remove_position_history_import_2026-07-30.md`、`db_backup/trading_schema_add_exit_quality_backup_2026-07-30.md`。**測試機與正式機目前皆尚未執行**，部署前務必先於 SSMS 手動跑過這三支腳本，否則 `/api/trading/*` 系列 API 會全部失敗。另需 `dotnet restore` 還原新增的 ClosedXML 套件（供解析 cTrader `.xlsx` 匯出檔）。
 
 ### 正式機連線字串
 
@@ -433,6 +441,7 @@ git config --global --add safe.directory <資料夾路徑>
 | — | **Rent 模組（新增）：房間房租/電費計算、公共電費雙月抄表試算、複製圖片** | 開發完成，**SQL 腳本尚未於任一環境執行，待測試機驗證** |
 | — | Rent 模組：手機版 UI 優化（表格字級加大、操作按鈕排版） | 開發完成，待測試機驗證 |
 | — | Rent 模組：複製圖片穩定性修正（整表/單一房間/電費明細改離屏靜態表格擷取；移除與 html2canvas 衝突的 sticky 房間欄位） | 開發完成，待測試機驗證 |
+| — | **Trading 模組（新增）：交易日誌，cTrader Records + TradingView 訂單匯入，績效分析/出場方式分類/隱含成本/滑價分析** | 開發完成，**SQL 腳本尚未於任一環境執行，待測試機驗證** |
 | 五 | 上線前安全檢查清單 | 尚未開始 |
 
 ### 尚待處理事項
@@ -450,6 +459,8 @@ git config --global --add safe.directory <資料夾路徑>
 - [ ] Rent 模組部署前需先於測試機、正式機 SSMS 依序執行 `scripts/sql/rent_schema.sql` 與 `scripts/sql/rent_schema_add_public_electricity_2026-07-27.sql`。
 - [ ] Rent 模組「公共電費」試算需要使用者持續在「公共電費」頁籤登記主表（母表）讀數（期間需與電費月相同），否則會以 0 帶入；待實際使用幾個月後再評估試算準確度。
 - [ ] Rent 模組目前只有前端單一物件視角（無物件切換 UI），資料庫已支援多物件，未來如需擴充多個出租地址只需前端調整。
+- [ ] Trading 模組部署前需先於測試機、正式機 SSMS 依序執行 `scripts/sql/trading_schema.sql`、`trading_schema_add_ctrader_records_2026-07-30.sql`、`trading_schema_add_exit_quality_2026-07-30.sql`，並執行 `dotnet restore` 還原 ClosedXML 套件。
+- [ ] Trading 模組隱含成本分析的合約乘數（每手對應商品單位數）目前只有 BTCUSD 經實際交易驗證為 1，其餘商品暫預設 1，可能不準確，待累積更多商品實際交易資料後擴充對照表（`TradeEndpoints.cs` 內 `TradeCostCalculator.ContractMultipliers`）。
 
 ---
 

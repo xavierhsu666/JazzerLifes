@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>JazzerLife Trading - 交易紀錄</title>
+
+  <!-- PWA：手機「加到主畫面」後可全螢幕開啟，比照 finance/car/macro/rent 模組設定 -->
+  <link rel="manifest" href="/manifest-trading.json" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Trading" />
+  <link rel="apple-touch-icon" href="/assets/image/apple-touch-icon.png" />
+
+  <script src="https://code.jquery.com/jquery-3.6.0.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highcharts/11.4.8/highcharts.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highcharts/11.4.8/modules/exporting.js"></script>
+
+  <link rel="stylesheet" href="/assets/css/trading.css" />
+  <link rel="icon" href="/assets/image/jazzerlife_logo.png" type="image/png" />
+</head>
+
+<body>
+  <!-- 懸浮選單按鈕 (僅在手機/平板顯示) -->
+  <button class="floating-menu-btn" id="floatingMenuBtn" aria-label="開啟選單">
+    <span class="floating-menu-icon">☰</span>
+  </button>
+
+  <!-- 左側功能區 -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <span class="logo-icon">📈</span>
+        <h1 class="logo-text" onclick="location.href='/index.html'">JazzerLife</h1>
+      </div>
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="切換側邊欄">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <ul class="nav-list">
+        <li class="nav-item active" data-feature="overview">
+          <a href="#" class="nav-link">
+            <span class="nav-icon">📊</span>
+            <span class="nav-text">總覽</span>
+          </a>
+        </li>
+        <li class="nav-item" data-feature="trades">
+          <a href="#" class="nav-link">
+            <span class="nav-icon">📋</span>
+            <span class="nav-text">交易明細</span>
+          </a>
+        </li>
+        <li class="nav-item" data-feature="tags">
+          <a href="#" class="nav-link">
+            <span class="nav-icon">🏷️</span>
+            <span class="nav-text">策略標籤</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-status" id="sidebarUserStatus">
+        <span class="user-name" id="sidebarUserName"></span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 主要內容區 -->
+  <div class="main-wrapper">
+    <header class="top-navbar" id="topNavbar">
+      <nav class="navbar-content">
+        <h2 class="view-title" style="font-size:1.1rem;">交易紀錄</h2>
+        <div class="date-filter-row">
+          <label class="date-filter-label">區間</label>
+          <input type="date" id="dateFromInput" class="date-input" />
+          <span style="color:var(--color-text-secondary);">～</span>
+          <input type="date" id="dateToInput" class="date-input" />
+          <button class="btn-secondary" id="btnApplyDateFilter">套用</button>
+        </div>
+      </nav>
+    </header>
+
+    <main class="main-content" id="mainContent">
+      <!-- Tab1：總覽 -->
+      <section class="content-view" id="view-overview" data-view="overview">
+        <div class="view-header">
+          <h2 class="view-title">總覽</h2>
+          <div class="view-actions">
+            <button class="btn-secondary" id="btnReloadOverview">重新整理</button>
+          </div>
+        </div>
+
+        <div class="kpi-grid" id="kpiGrid">
+          <div class="kpi-card"><div class="kpi-label">交易筆數</div><div class="kpi-value" id="kpiTotalTrades">-</div></div>
+          <div class="kpi-card"><div class="kpi-label">總損益</div><div class="kpi-value" id="kpiTotalProfit">-</div></div>
+          <div class="kpi-card"><div class="kpi-label">勝率</div><div class="kpi-value" id="kpiWinRate">-</div></div>
+          <div class="kpi-card"><div class="kpi-label">獲利因子</div><div class="kpi-value" id="kpiProfitFactor">-</div></div>
+          <div class="kpi-card"><div class="kpi-label">平均賺賠比</div><div class="kpi-value" id="kpiWinLossRatio">-</div></div>
+          <div class="kpi-card"><div class="kpi-label">平均持倉時間</div><div class="kpi-value" id="kpiHoldingTime">-</div></div>
+        </div>
+
+        <div class="table-container" style="margin-bottom: var(--spacing-lg);">
+          <h3 class="section-subtitle">資金曲線</h3>
+          <div id="equityChart"></div>
+        </div>
+
+        <div class="analysis-grid">
+          <div class="table-container">
+            <h3 class="section-subtitle">依商品分類</h3>
+            <div id="symbolChart"></div>
+          </div>
+          <div class="table-container">
+            <h3 class="section-subtitle">依策略標籤</h3>
+            <table class="trade-table" id="tagStatsTable">
+              <thead><tr><th>標籤</th><th>筆數</th><th>總損益</th><th>勝率</th></tr></thead>
+              <tbody id="tagStatsTableBody"></tbody>
+            </table>
+          </div>
+          <div class="table-container">
+            <h3 class="section-subtitle">依出場方式</h3>
+            <table class="trade-table" id="exitReasonStatsTable">
+              <thead><tr><th>出場方式</th><th>筆數</th><th>總損益</th><th>勝率</th></tr></thead>
+              <tbody id="exitReasonStatsTableBody"></tbody>
+            </table>
+          </div>
+          <div class="table-container">
+            <h3 class="section-subtitle">隱含成本分析</h3>
+            <div class="kpi-grid" id="costKpiGrid" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:8px;">
+              <div class="kpi-card"><div class="kpi-label">毛損益</div><div class="kpi-value" id="kpiGrossProfit">-</div></div>
+              <div class="kpi-card"><div class="kpi-label">淨損益</div><div class="kpi-value" id="kpiNetProfit">-</div></div>
+              <div class="kpi-card"><div class="kpi-label">隱含成本</div><div class="kpi-value" id="kpiImpliedCost">-</div></div>
+              <div class="kpi-card"><div class="kpi-label">平均滑價</div><div class="kpi-value" id="kpiAvgSlippage">-</div></div>
+            </div>
+            <p class="hint-text" id="costAnalysisNote"></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab2：交易明細 -->
+      <section class="content-view hidden" id="view-trades" data-view="trades">
+        <div class="view-header">
+          <h2 class="view-title">交易明細</h2>
+          <div class="view-actions">
+            <button class="btn-secondary" id="btnReloadTrades">重新整理</button>
+            <button class="btn-secondary" id="btnShowImportPanel">匯入資料</button>
+            <button class="btn-primary" id="btnShowAddTradeForm">手動新增</button>
+          </div>
+        </div>
+
+        <!-- 匯入面板：預設隱藏，點「匯入資料」才展開 -->
+        <div class="table-container import-panel hidden" id="importPanel">
+          <h3 class="section-subtitle">匯入 cTrader Records（.xlsx）</h3>
+          <p class="hint-text">推薦優先使用：一列就是一筆完整交易，含進場價/出場價/損益。缺少進場時間，可再用下方 TradingView 訂單補齊。報表時間是 UTC，需換算成你帳戶顯示的時區才能跟 TradingView 資料對得上。</p>
+          <div class="upload-row">
+            <input type="file" id="ctraderRecordsFileInput" accept=".xlsx" />
+            <label class="tolerance-label">時區(UTC+)
+              <input type="number" id="ctraderRecordsTzInput" value="8" style="width:60px;" />
+            </label>
+            <button class="btn-primary" id="btnUploadCtraderRecords">上傳並匯入</button>
+          </div>
+          <div class="import-result" id="ctraderRecordsImportResult"></div>
+
+          <h3 class="section-subtitle" style="margin-top:20px;">補進場時間/進出場價格：TradingView 訂單匯出（.csv）</h3>
+          <p class="hint-text">只會用商品＋方向＋數量＋時間相近，比對已匯入交易補值，不會新增交易。</p>
+          <div class="upload-row">
+            <input type="file" id="tvFileInput" accept=".csv" />
+            <label class="tolerance-label">時間誤差(分鐘)
+              <input type="number" id="tvToleranceInput" value="10" min="1" style="width:70px;" />
+            </label>
+            <button class="btn-primary" id="btnUploadTv">上傳並補值</button>
+          </div>
+          <div class="import-result" id="tvImportResult"></div>
+        </div>
+
+        <!-- 手動新增表單：預設隱藏 -->
+        <form class="add-trade-form hidden" id="addTradeForm">
+          <label>商品<input type="text" id="newTradeSymbol" placeholder="如 BTCUSD" required /></label>
+          <label>方向
+            <select id="newTradeDirection">
+              <option value="Buy">Buy（做多）</option>
+              <option value="Sell">Sell（做空）</option>
+            </select>
+          </label>
+          <label>數量<input type="number" step="0.0001" id="newTradeVolume" required /></label>
+          <label>進場時間<input type="datetime-local" id="newTradeEntryTime" required /></label>
+          <label>出場時間<input type="datetime-local" id="newTradeExitTime" /></label>
+          <label>進場價<input type="number" step="0.000001" id="newTradeEntryPrice" /></label>
+          <label>出場價<input type="number" step="0.000001" id="newTradeExitPrice" /></label>
+          <label>損益<input type="number" step="0.01" id="newTradeProfit" required /></label>
+          <label>策略標籤
+            <select id="newTradeStrategyTag"><option value="">（未標記）</option></select>
+          </label>
+          <label>出場方式
+            <select id="newTradeExitReason">
+              <option value="">（未知）</option>
+              <option value="StopLoss">停損</option>
+              <option value="TakeProfit">停利</option>
+              <option value="Market">手動/市價</option>
+            </select>
+          </label>
+          <label class="add-trade-note-label">心得<input type="text" id="newTradeNote" placeholder="進出場理由/心得" /></label>
+          <div class="add-trade-form-actions">
+            <button type="submit" class="btn-primary">新增</button>
+            <button type="button" class="btn-secondary" id="btnCancelAddTrade">取消</button>
+          </div>
+        </form>
+
+        <div class="table-container filter-row">
+          <label>商品<input type="text" id="filterSymbol" placeholder="全部" /></label>
+          <label>來源
+            <select id="filterSource">
+              <option value="">全部</option>
+              <option value="ICMarketsRecords">ICMarkets Records</option>
+              <option value="ICMarkets">ICMarkets Position History</option>
+              <option value="Manual">Manual</option>
+            </select>
+          </label>
+          <label>策略標籤
+            <select id="filterStrategyTag"><option value="">全部</option></select>
+          </label>
+          <label class="filter-checkbox"><input type="checkbox" id="filterNeedsReview" /> 只顯示需人工檢查</label>
+          <button class="btn-secondary" id="btnApplyTradeFilter">篩選</button>
+        </div>
+
+        <div class="table-container">
+          <div style="overflow-x:auto;">
+            <table class="trade-table" id="tradeTable">
+              <thead>
+                <tr>
+                  <th>商品</th><th>方向</th><th>數量</th><th>進場時間</th><th>出場時間</th>
+                  <th>進場價</th><th>出場價</th><th>損益</th><th>出場方式</th><th>滑價</th>
+                  <th>來源</th><th>策略標籤</th><th>心得</th>
+                  <th class="action-col">操作</th>
+                </tr>
+              </thead>
+              <tbody id="tradeTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab3：策略標籤管理 -->
+      <section class="content-view hidden" id="view-tags" data-view="tags">
+        <div class="view-header">
+          <h2 class="view-title">策略標籤管理</h2>
+          <div class="view-actions">
+            <button class="btn-secondary" id="btnReloadTags">重新整理</button>
+            <button class="btn-secondary" id="btnToggleShowInactiveTags">顯示已停用標籤</button>
+          </div>
+        </div>
+
+        <form class="add-tag-form" id="addTagForm">
+          <label>標籤名稱<input type="text" id="newTagName" placeholder="如：突破策略" required /></label>
+          <label>排序<input type="number" id="newTagSort" value="0" /></label>
+          <button type="submit" class="btn-primary">新增標籤</button>
+        </form>
+
+        <div class="table-container">
+          <table class="trade-table" id="tagTable">
+            <thead><tr><th>標籤名稱</th><th>排序</th><th>狀態</th><th class="action-col">操作</th></tr></thead>
+            <tbody id="tagTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- 手機底部固定導覽列 -->
+  <nav class="app-bottom-nav">
+    <div class="app-bottom-nav-item active" data-feature="overview">
+      <span class="app-bottom-nav-icon">📊</span><span class="app-bottom-nav-label">總覽</span>
+    </div>
+    <div class="app-bottom-nav-item" data-feature="trades">
+      <span class="app-bottom-nav-icon">📋</span><span class="app-bottom-nav-label">明細</span>
+    </div>
+    <div class="app-bottom-nav-item" data-feature="tags">
+      <span class="app-bottom-nav-icon">🏷️</span><span class="app-bottom-nav-label">標籤</span>
+    </div>
+  </nav>
+
+  <script src="/assets/js/trading.js"></script>
+</body>
+
+</html>

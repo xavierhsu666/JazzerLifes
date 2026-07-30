@@ -28,7 +28,7 @@ var tmp_aggrid;
 function checkSignInStatus() {
     return $.get("/api/auth/me").fail(function () {
         alert("請先登入");
-        window.location.assign("./signin.html#car");
+        window.location.assign("/signin.html#car/car");
     });
 }
 
@@ -230,7 +230,7 @@ function submitOilRecord() {
             loader_animate.load_end();
             if (xhr.status === 401) {
                 alert("請先登入");
-                window.location.assign("./signin.html");
+                window.location.assign("/signin.html");
             } else {
                 alert("新增失敗，請洽系統管理員");
             }
@@ -486,7 +486,7 @@ function loadDashboard(vid, uid) {
         .fail(function (xhr) {
             if (xhr.status === 401) {
                 alert("請先登入");
-                window.location.assign("./signin.html");
+                window.location.assign("/signin.html");
             } else if (xhr.status === 403) {
                 alert("無權限存取此車輛");
             }
@@ -1032,7 +1032,7 @@ function submitNewCycle() {
             loader_animate.load_end();
             if (xhr.status === 401) {
                 alert("請先登入");
-                window.location.assign("./signin.html");
+                window.location.assign("/signin.html");
             } else {
                 alert((isEdit ? "更新" : "新增") + "失敗，請洽系統管理員");
             }
@@ -1204,7 +1204,7 @@ function submitMaintenance() {
             loader_animate.load_end();
             if (xhr.status === 401) {
                 alert("請先登入");
-                window.location.assign("./signin.html");
+                window.location.assign("/signin.html");
             } else {
                 alert("新增失敗，請洽系統管理員");
             }
@@ -1269,7 +1269,7 @@ function upd_Vehicle() {
             loader_animate.load_end();
             if (xhr.status === 401) {
                 alert("請先登入");
-                window.location.assign("./signin.html");
+                window.location.assign("/signin.html");
             } else if (xhr.status === 403) {
                 alert("無權限修改此車輛");
             } else {
@@ -1356,7 +1356,7 @@ function sel_Vehicles() {
                 loader_animate.load_end();
                 if (xhr.status === 401) {
                     alert("請先登入");
-                    window.location.assign("./signin.html");
+                    window.location.assign("/signin.html");
                 } else {
                     alert("讀取車輛清單失敗，請洽系統管理員");
                 }

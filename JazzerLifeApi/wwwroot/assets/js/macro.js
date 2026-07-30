@@ -34,7 +34,7 @@ var MacroApp = {
                 self.loadOverview();
             })
             .fail(function () {
-                window.location.assign("./signin.html#macro");
+                window.location.assign("/signin.html#macro/macro");
             });
     },
 
@@ -124,7 +124,7 @@ var MacroApp = {
             }
         }).fail(function (xhr) {
             if (xhr.status === 401) {
-                window.location.assign("./signin.html#macro");
+                window.location.assign("/signin.html#macro/macro");
                 return;
             }
             $("#thermoGrid").html('<p style="color:var(--color-text-secondary)">總覽資料載入失敗，請稍後重試。</p>');

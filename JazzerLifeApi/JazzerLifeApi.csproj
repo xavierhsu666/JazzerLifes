@@ -8,6 +8,8 @@
 
   <ItemGroup>
     <PackageReference Include="BCrypt.Net-Next" Version="4.2.0" />
+    <!-- ClosedXML：解析 IC Markets cTrader Position History List 匯出的 .xlsx 檔（MIT 授權，免費） -->
+    <PackageReference Include="ClosedXML" Version="0.104.2" />
     <PackageReference Include="CsvHelper" Version="33.1.0" />
     <PackageReference Include="Hangfire.AspNetCore" Version="1.8.24" />
     <PackageReference Include="Hangfire.SqlServer" Version="1.8.24" />

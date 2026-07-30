@@ -45,13 +45,21 @@ function doLogout() {
   });
 }
 
-function checkLogStatus(href) {
+// note: 每個子專案都各自獨立的子目錄（/<folder>/<folder>.html），
+// 是為了讓每個專案能各自擁有獨立的 manifest.json / scope，安裝成不同的 PWA，
+// 不可以攤平到根目錄，否則多個專案會共用同一個 PWA scope。
+function checkLogStatus(folder) {
+  if (!folder) {
+    console.warn("checkLogStatus: 缺少 folder 參數");
+    return;
+  }
+  var targetUrl = "/" + folder + "/" + folder + ".html";
   $.get("/api/auth/me")
     .done(function () {
-      window.location.assign(href);
+      window.location.assign(targetUrl);
     })
     .fail(function () {
-      window.location.assign("signin.html#" + href.split(".")[0]);
+      window.location.assign("signin.html#" + folder + "/" + folder);
     });
 }
 // ! -- Main Area ------------------------------------------------------------------------------

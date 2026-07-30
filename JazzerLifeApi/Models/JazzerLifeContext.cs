@@ -63,6 +63,10 @@ public partial class JazzerLifeContext : DbContext
 
     public virtual DbSet<Stock> Stocks { get; set; }
 
+    public virtual DbSet<StrategyTag> StrategyTags { get; set; }
+
+    public virtual DbSet<Trade> Trades { get; set; }
+
     public virtual DbSet<User> Users { get; set; }
 
     public virtual DbSet<Vehicle> Vehicles { get; set; }
@@ -658,6 +662,73 @@ public partial class JazzerLifeContext : DbContext
             entity.Property(e => e.UnRealizedBenefitRatio).HasColumnType("decimal(5, 2)");
             entity.Property(e => e.UpdatedAt).HasColumnType("datetime");
             entity.Property(e => e.UserId).HasColumnName("UserID");
+        });
+
+        modelBuilder.Entity<StrategyTag>(entity =>
+        {
+            entity.HasKey(e => e.StrategyTagId);
+
+            entity.ToTable("StrategyTag", "TRADING");
+
+            entity.HasIndex(e => new { e.UserId, e.Name }, "UQ_StrategyTag_UserName").IsUnique();
+
+            entity.Property(e => e.StrategyTagId).HasColumnName("StrategyTagID");
+            entity.Property(e => e.UserId).HasColumnName("UserID");
+            entity.Property(e => e.Name).HasMaxLength(50);
+            entity.Property(e => e.SortOrder).HasDefaultValue(0);
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+        });
+
+        modelBuilder.Entity<Trade>(entity =>
+        {
+            entity.HasKey(e => e.TradeId);
+
+            entity.ToTable("Trade", "TRADING");
+
+            entity.HasIndex(e => new { e.UserId, e.EntryTime }, "IX_Trade_UserID_EntryTime");
+
+            entity.HasIndex(e => new { e.UserId, e.Symbol }, "IX_Trade_UserID_Symbol");
+
+            // Filtered unique index（比照 SQL 腳本）：EF Core 用 HasFilter 表示只約束 BrokerPositionId 有值的列
+            entity.HasIndex(e => new { e.UserId, e.Source, e.BrokerPositionId }, "UQ_Trade_User_Source_BrokerPositionId")
+                .IsUnique()
+                .HasFilter("[BrokerPositionId] IS NOT NULL");
+
+            entity.Property(e => e.TradeId).HasColumnName("TradeID");
+            entity.Property(e => e.UserId).HasColumnName("UserID");
+            entity.Property(e => e.Symbol).HasMaxLength(20);
+            entity.Property(e => e.Direction).HasMaxLength(10);
+            entity.Property(e => e.Volume)
+                .HasColumnType("decimal(18, 4)")
+                .HasDefaultValue(0m);
+            entity.Property(e => e.EntryPrice).HasColumnType("decimal(18, 6)");
+            entity.Property(e => e.ExitPrice).HasColumnType("decimal(18, 6)");
+            entity.Property(e => e.Profit)
+                .HasColumnType("decimal(18, 2)")
+                .HasDefaultValue(0m);
+            entity.Property(e => e.Source).HasMaxLength(20);
+            entity.Property(e => e.BrokerPositionId).HasMaxLength(50);
+            entity.Property(e => e.StrategyTagId).HasColumnName("StrategyTagID");
+            entity.Property(e => e.Note).HasMaxLength(1000);
+            entity.Property(e => e.ExitReason).HasMaxLength(20);
+            entity.Property(e => e.ExitSlippage).HasColumnType("decimal(18, 6)");
+            entity.Property(e => e.NeedsReview).HasDefaultValue(false);
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+
+            entity.HasOne(d => d.StrategyTag).WithMany(p => p.Trades)
+                .HasForeignKey(d => d.StrategyTagId)
+                .HasConstraintName("FK_Trade_StrategyTag");
         });
 
         modelBuilder.Entity<User>(entity =>
