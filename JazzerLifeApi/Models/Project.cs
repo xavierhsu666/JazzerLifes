@@ -35,5 +35,7 @@ public partial class Project
 
     public virtual ICollection<ProjectCashflowRule> ProjectCashflowRules { get; set; } = new List<ProjectCashflowRule>();
 
+    public virtual ICollection<ProjectCashflowExclusion> ProjectCashflowExclusions { get; set; } = new List<ProjectCashflowExclusion>();
+
     public virtual ProjectExpectedDraft? ProjectExpectedDraft { get; set; }
 }

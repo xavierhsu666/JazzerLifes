@@ -185,21 +185,24 @@ class FinanceApp {
                 { field: "KeyWord", headerName: "關鍵字", flex: 1.2, minWidth: 110 },
                 { field: "Status", headerName: "狀態", width: 100, minWidth: 90 },
                 {
-                    field: "BillBudget",
-                    headerName: "預算",
+                    // 改為「上個月預期資產」：取該專案「預期資產變化」子系統實際有資料的最新月份期末推算值，不再是建立專案時的預算
+                    field: "PrevMonthExpectedAsset",
+                    headerName: "上月預期資產",
                     flex: 1.2,
                     minWidth: 130,
                     valueFormatter: (params) => "NT$" + Math.round(Number(params.value || 0)).toLocaleString(),
                 },
                 {
-                    field: "Net",
-                    headerName: "淨收支",
+                    // 改為「上個月實際資產」：取該專案「資產流」子系統實際有綁定資料的最新月份帳戶餘額合計，不再是關鍵字命中交易的淨收支
+                    field: "PrevMonthActualAsset",
+                    headerName: "上月實際資產",
                     flex: 1.2,
                     minWidth: 130,
                     valueFormatter: (params) => "NT$" + Math.round(Number(params.value || 0)).toLocaleString(),
                     cellStyle: (params) => this.getCellStyle(params.value),
                 },
                 {
+                    // 達成率改由「上月實際資產 / 上月預期資產」計算（後端算好直接回傳）
                     field: "FullfillRatio",
                     headerName: "達成率",
                     width: 100,
@@ -256,6 +259,41 @@ class FinanceApp {
                     valueFormatter: (params) => "NT$" + Math.round(Number(params.value || 0)).toLocaleString(),
                 },
                 { field: "Note", headerName: "備註", width: 200 },
+                {
+                    field: "BillId",
+                    headerName: "操作",
+                    width: 170,
+                    minWidth: 170,
+                    pinned: "right",
+                    sortable: false,
+                    filter: false,
+                    editable: false,
+                    cellRenderer: (params) => {
+                        const editButton = document.createElement("button");
+                        editButton.textContent = "編輯";
+                        editButton.classList.add("btn", "btn-primary");
+                        editButton.addEventListener("click", () => {
+                            this.openEditBillModal(params.data);
+                        });
+
+                        const deleteButton = document.createElement("button");
+                        deleteButton.textContent = "刪除";
+                        deleteButton.classList.add("btn", "btn-danger");
+                        deleteButton.addEventListener("click", () => {
+                            this.confirmDeleteBill(params.data);
+                        });
+
+                        const buttonArea = document.createElement("div");
+                        $(buttonArea).css({
+                            display: "flex",
+                            gap: "8px",
+                            justifyContent: "center",
+                        });
+                        buttonArea.appendChild(editButton);
+                        buttonArea.appendChild(deleteButton);
+                        return buttonArea;
+                    },
+                },
             ],
             "bills-expense-monthly": [
                 { field: "billProject", headerName: "專案名稱", width: 150, sort: "asc" },
@@ -335,6 +373,7 @@ class FinanceApp {
             projectDetailMonth: "",
             projectDetailDirty: false,
             pdCashflowAllMonths: false,
+            pdCashflowShowExcluded: false,
             accountSnapshotMonth: "",
             accountCategoryOptions: [],
             accountCategoryMap: {},
@@ -646,6 +685,15 @@ class FinanceApp {
             }
             this.refreshCashflowGrid();
         });
+        $("#pdCashflowShowExcluded").on("click", () => {
+            this.state.pdCashflowShowExcluded = !this.state.pdCashflowShowExcluded;
+            const btn = document.getElementById("pdCashflowShowExcluded");
+            if (btn) {
+                btn.textContent = this.state.pdCashflowShowExcluded ? "隱藏已排除" : "顯示已排除";
+                btn.classList.toggle("active", this.state.pdCashflowShowExcluded);
+            }
+            this.refreshCashflowGrid();
+        });
         $("#pdGenerateDraft").on("click", () => this.generateExpectedDraftFromRates());
         ["pdName", "pdStatus", "pdBudget", "pdStartDate", "pdEndDate", "pdTagPrefix"].forEach((id) => {
             $("#" + id).on("input change", () => this.setProjectDetailDirty(true));
@@ -658,6 +706,11 @@ class FinanceApp {
                     this.closeModal();
                 });
             });
+        }
+
+        const btnAddBill = document.getElementById("btnAddBill");
+        if (btnAddBill) {
+            btnAddBill.addEventListener("click", () => this.openAddBillModal());
         }
     }
 
@@ -828,7 +881,6 @@ class FinanceApp {
                     selfObj.initCharts_byViewId(data, viewId, "assetTrendChart");
                     selfObj.updateStatCards(viewId);
                 });
-                selfObj.renderAssetCategoryBreakdown();
                 selfObj.renderExpenseForecast();
                 break;
             case "cash-flow":
@@ -875,11 +927,7 @@ class FinanceApp {
                 selfObj.refreshProjectDetailUI();
                 break;
             case "bill-management":
-                $("#bills_list").empty();
-                selfObj.load_data("bills").then(function () {
-                    var data = selfObj.data.bills;
-                    selfObj.initGrids_by_viewId(data, viewId, "bills_list");
-                });
+                selfObj.refreshBillListView();
                 break;
             case "bills-expense-monthly":
                 $("#bills_yearly_expense_list").empty();
@@ -1301,41 +1349,33 @@ class FinanceApp {
                 self._getFinancialData(viewId);
                 var { currentMonth, lastMonth, lastYearSameMonth } = self.state.financialData;
 
+                // 卡片精簡：只留「淨資產差」與相較月份的漲跌百分比，資產差/負債差不再顯示（避免卡片資訊過多）
                 var momDiff = currentMonth.NetAssets - lastMonth.NetAssets;
-                var momDiff_income = currentMonth.Assets - lastMonth.Assets;
-                var momDiff_expense = currentMonth.Debt - lastMonth.Debt;
                 var momPercentage = ((momDiff / lastMonth.NetAssets) * 100).toFixed(1);
                 var momClass = momDiff >= 0 ? "positive" : "negative";
 
                 self.elements.statMoM.innerHTML = `
-            <span>資產差 ${momDiff_income >= 0 ? "+" : ""}${self.formatAxisCurrency(momDiff_income)}</span>
-            <span>負債差 ${momDiff_expense >= 0 ? "+" : ""}${self.formatAxisCurrency(momDiff_expense)}</span>
             <span class="stat-amount">淨資產差 ${momDiff >= 0 ? "+" : ""}${self.formatAxisCurrency(momDiff)}</span>
             <span class="stat-percentage ${momClass}">${momDiff >= 0 ? "+" : ""}${momPercentage}%</span>
             <p class="stat-description">相較上月 (${lastMonth["Time"]})</p>
         `;
 
                 var yoyDiff = currentMonth.NetAssets - lastYearSameMonth.NetAssets;
-                var yoyDiff_income = currentMonth.Assets - lastYearSameMonth.Assets;
-                var yoyDiff_expense = currentMonth.Debt - lastYearSameMonth.Debt;
                 var yoyPercentage = ((yoyDiff / lastYearSameMonth.NetAssets) * 100).toFixed(1);
                 var yoyClass = yoyDiff >= 0 ? "positive" : "negative";
 
                 self.elements.statYoY.innerHTML = `
-            <span>資產差 ${yoyDiff_income >= 0 ? "+" : ""}${self.formatAxisCurrency(yoyDiff_income)}</span>
-            <span>負債差 ${yoyDiff_expense >= 0 ? "+" : ""}${self.formatAxisCurrency(yoyDiff_expense)}</span>
             <span class="stat-amount">淨資產差 ${yoyDiff >= 0 ? "+" : ""}${self.formatAxisCurrency(yoyDiff)}</span>
             <span class="stat-percentage ${yoyClass}">${yoyDiff >= 0 ? "+" : ""}${yoyPercentage}%</span>
             <p class="stat-description">相較去年同期 (${lastYearSameMonth["Time"]})</p>
         `;
 
+                // 「本月資產結餘」卡片：只留結餘金額與資產/負債大小關係，不再列資產/負債個別金額
                 var balance = currentMonth.Assets - currentMonth.Debt;
                 var balanceClass = balance >= 0 ? "positive" : "negative";
                 var balanceText = balance >= 0 ? "資產 > 負債" : "負債 > 資產";
 
                 self.elements.statBalance.innerHTML = `
-            <span>資產 ${currentMonth.Assets >= 0 ? "+" : ""}${self.formatAxisCurrency(currentMonth.Assets)}</span>
-            <span>負債 ${currentMonth.Debt >= 0 ? "-" : ""}${self.formatAxisCurrency(currentMonth.Debt)}</span>
             <span class="stat-amount">結餘 ${balance >= 0 ? "+" : ""}${self.formatAxisCurrency(balance)}</span>
             <span class="stat-percentage ${balanceClass}">${balanceText}</span>
         `;
@@ -2325,9 +2365,10 @@ class FinanceApp {
             return;
         }
         const allMonths = Boolean(this.state.pdCashflowAllMonths);
+        const showExcluded = Boolean(this.state.pdCashflowShowExcluded);
         var self = this;
 
-        $.get(`/api/finance/projects/${draft.projectId}/cashflow-matches`, { month: allMonths ? "" : month }).then((res) => {
+        $.get(`/api/finance/projects/${draft.projectId}/cashflow-matches`, { month: allMonths ? "" : month, showExcluded }).then((res) => {
             this.createDetailGrid(
                 "pdCashflowGrid",
                 "pdCashflowGrid",
@@ -2344,6 +2385,18 @@ class FinanceApp {
                         valueFormatter: (params) => self.formatCurrency(params.value),
                         cellStyle: (params) => self.getCellStyle(params.value),
                     },
+                    {
+                        // 「專案層面排除」欄：只影響這個專案的命中金額/現金流統計，不動到 Detail.IsExcluded，
+                        // 也不影響其他專案（沿用一般明細頁「排除」按鈕同一套一鍵切換寫法）
+                        field: "IsProjectExcluded",
+                        headerName: "本專案排除",
+                        width: 130,
+                        sortable: false,
+                        filter: false,
+                        editable: false,
+                        cellStyle: (params) => (params.value ? { color: "#f44336" } : null),
+                        cellRenderer: (params) => self._cashflowExcludeCellRenderer(params),
+                    },
                 ],
                 res.matched || [],
             );
@@ -2352,6 +2405,38 @@ class FinanceApp {
             self._setText("pdHitAmount", `命中金額：${self.formatCurrency(res.hitAmount || 0)}`);
             self._setText("pdMissCount", `未命中筆數：${res.missCount || 0}`);
         });
+    }
+
+    _cashflowExcludeCellRenderer(params) {
+        const excluded = params.data?.IsProjectExcluded === true;
+        const btn = document.createElement("button");
+        btn.textContent = excluded ? "取消排除" : "排除";
+        btn.classList.add("btn", excluded ? "btn-secondary" : "btn-danger");
+        btn.addEventListener("click", (event) => {
+            event.stopPropagation();
+            this.toggleCashflowExcluded(params.data);
+        });
+        const area = document.createElement("div");
+        $(area).css({ display: "flex", justifyContent: "center" });
+        area.appendChild(btn);
+        return area;
+    }
+
+    toggleCashflowExcluded(row) {
+        const draft = this.state.projectDetailDraft;
+        if (!draft || !row || !row.DetailId) {
+            alert("找不到明細識別碼，無法變更排除狀態");
+            return;
+        }
+        var self = this;
+        $.post(`/api/finance/projects/${draft.projectId}/cashflow-matches/${row.DetailId}/toggle-exclude`)
+            .done(function () {
+                self.refreshCashflowGrid();
+                self.updateProjectDetailSummary();
+            })
+            .fail(function (xhr) {
+                alert("操作失敗：" + (xhr.responseJSON?.message || "請洽系統管理員"));
+            });
     }
 
     _setText(id, text) {
@@ -2483,7 +2568,7 @@ class FinanceApp {
             });
         }
 
-        $.get(`/api/finance/projects/${draft.projectId}/cashflow-matches`, { month: "" }).then((res) => {
+        $.get(`/api/finance/projects/${draft.projectId}/cashflow-matches`, { month: "", showExcluded: false }).then((res) => {
             self._setText("pdTxCount", String(res.hitCount || 0));
         });
     }
@@ -3010,25 +3095,30 @@ class FinanceApp {
     }
 
     // 未選取任何月份時：完整的 分類 x 期間 樞紐表
+    // 欄寬加大（92 -> 120）：原本 92px 在數字較大時（例如 6 位數金額）會被截斷顯示不全
     renderCategoryPivotGrid(periods, categories, sums) {
         const cols = [{ field: "category", headerName: "分類", pinned: "left", minWidth: 140, flex: 1 }];
         periods.forEach((p) => {
             cols.push({
                 field: p,
                 headerName: this._formatCaPeriodHeader(p),
-                width: 92,
+                width: 120,
+                minWidth: 120,
                 valueFormatter: (params) => "NT$ " + Math.round(Number(params.value || 0)).toLocaleString(),
             });
         });
+        // pinRight 欄位改為「平均值」（期間金額平均），不再顯示合計值
         cols.push({
-            field: "__total",
-            headerName: "合計",
-            width: 140,
+            field: "__avg",
+            headerName: "平均值",
+            width: 150,
+            minWidth: 150,
             pinned: "right",
             valueFormatter: (params) => "NT$ " + Math.round(Number(params.value || 0)).toLocaleString(),
             cellStyle: () => ({ fontWeight: "bold", color: "#00bcd4" }),
         });
 
+        const periodCount = periods.length || 1;
         const rows = categories.map((cat) => {
             const row = { category: cat };
             let total = 0;
@@ -3037,7 +3127,7 @@ class FinanceApp {
                 row[p] = v;
                 total += v;
             });
-            row.__total = total;
+            row.__avg = Math.round(total / periodCount);
             return row;
         });
         if (rows.length) {
@@ -3048,7 +3138,7 @@ class FinanceApp {
                 totalRow[p] = colSum;
                 grand += colSum;
             });
-            totalRow.__total = grand;
+            totalRow.__avg = Math.round(grand / periodCount);
             rows.push(totalRow);
         }
 
@@ -3274,6 +3364,150 @@ class FinanceApp {
                     self.load_data("projects").then(function () {
                         self.refreshProjectListView();
                     });
+                })
+                .fail(function (xhr) {
+                    alert("刪除失敗：" + (xhr.responseJSON?.message || "請洽系統管理員"));
+                });
+        });
+    }
+
+    // ---------- 帳單管理 ----------
+
+    refreshBillListView() {
+        var self = this;
+        $("#bills_list").empty();
+        return this.load_data("bills").then(function () {
+            self.initGrids_by_viewId(self.data.bills, "bill-management", "bills_list");
+        });
+    }
+
+    // 新增/編輯共用同一份表單；defaults 有帶值時是編輯模式，欄位會預先帶入現有資料
+    getBillForm(defaults) {
+        const d = defaults || {};
+        return `
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+                <div>
+                    <label style="display:block; margin-bottom:8px; color:#b0b0b0;">專案名稱（可留空，僅供標示用途）</label>
+                    <input type="text" id="billProjectId" value="${d.BillProjectId ? String(d.BillProjectId).replace(/"/g, "&quot;") : ""}" placeholder="例如：房租"
+                           style="width:100%; padding:12px; background-color:#2a2a2a; border:1px solid #757575; border-radius:8px; color:#fff; font-size:14px;">
+                </div>
+                <div>
+                    <label style="display:block; margin-bottom:8px; color:#b0b0b0;">帳單名稱</label>
+                    <input type="text" id="billName" value="${d.BillName ? String(d.BillName).replace(/"/g, "&quot;") : ""}" placeholder="例如：房租"
+                           style="width:100%; padding:12px; background-color:#2a2a2a; border:1px solid #757575; border-radius:8px; color:#fff; font-size:14px;">
+                </div>
+                <div>
+                    <label style="display:block; margin-bottom:8px; color:#b0b0b0;">頻率規則</label>
+                    <input type="text" id="billFrequency" value="${d.Frequency ? String(d.Frequency).replace(/"/g, "&quot;") : ""}" placeholder="例如：{type:'monthly',interval:'1',date:'5'}"
+                           style="width:100%; padding:12px; background-color:#2a2a2a; border:1px solid #757575; border-radius:8px; color:#fff; font-size:14px;">
+                    <p class="pd-muted" style="margin-top:6px;">格式沿用「每月支出」預估邏輯（frequency_tool.js）：weekly 用 weekday(1=一~7=日)、monthly/yearly 用 date(幾號)，yearly 另需 month(1-12)。</p>
+                </div>
+                <div style="display:flex; gap:12px;">
+                    <div style="flex:1;">
+                        <label style="display:block; margin-bottom:8px; color:#b0b0b0;">金額</label>
+                        <input type="number" id="billAmount" value="${d.BillAmount != null ? Number(d.BillAmount) : ""}" placeholder="0"
+                               style="width:100%; padding:12px; background-color:#2a2a2a; border:1px solid #757575; border-radius:8px; color:#fff; font-size:14px;">
+                    </div>
+                </div>
+                <div style="display:flex; gap:12px;">
+                    <div style="flex:1;">
+                        <label style="display:block; margin-bottom:8px; color:#b0b0b0;">開始日期</label>
+                        <input type="date" id="billStartDate" value="${d.BillStartTime ? this.formatDate(d.BillStartTime) : ""}"
+                               style="width:100%; padding:12px; background-color:#2a2a2a; border:1px solid #757575; border-radius:8px; color:#fff; font-size:14px;">
+                    </div>
+                    <div style="flex:1;">
+                        <label style="display:block; margin-bottom:8px; color:#b0b0b0;">結束日期（可留空＝沒有結束日）</label>
+                        <input type="date" id="billEndDate" value="${d.BillEndTime ? this.formatDate(d.BillEndTime) : ""}"
+                               style="width:100%; padding:12px; background-color:#2a2a2a; border:1px solid #757575; border-radius:8px; color:#fff; font-size:14px;">
+                    </div>
+                </div>
+                <div>
+                    <label style="display:block; margin-bottom:8px; color:#b0b0b0;">備註</label>
+                    <input type="text" id="billNote" value="${d.Note ? String(d.Note).replace(/"/g, "&quot;") : ""}"
+                           style="width:100%; padding:12px; background-color:#2a2a2a; border:1px solid #757575; border-radius:8px; color:#fff; font-size:14px;">
+                </div>
+            </div>
+        `;
+    }
+
+    _readBillFormPayload() {
+        const billProjectId = document.getElementById("billProjectId")?.value?.trim() || null;
+        const billName = document.getElementById("billName")?.value?.trim();
+        const frequency = document.getElementById("billFrequency")?.value?.trim();
+        const billAmount = Number(document.getElementById("billAmount")?.value || 0);
+        const startDate = document.getElementById("billStartDate")?.value || "";
+        const endDate = document.getElementById("billEndDate")?.value || "";
+        const note = document.getElementById("billNote")?.value?.trim() || null;
+
+        return {
+            BillProjectId: billProjectId,
+            BillName: billName,
+            Frequency: frequency,
+            BillAmount: billAmount,
+            BillStartTime: startDate || null,
+            BillEndTime: endDate || null,
+            Note: note,
+        };
+    }
+
+    openAddBillModal() {
+        var self = this;
+        this.showModal("新增帳單", this.getBillForm(), () => {
+            const payload = self._readBillFormPayload();
+            if (!payload.BillName || !payload.Frequency) {
+                alert("請填寫帳單名稱與頻率規則");
+                return;
+            }
+            $.ajax({
+                url: "/api/finance/bills",
+                type: "POST",
+                contentType: "application/json",
+                data: JSON.stringify(payload),
+            })
+                .done(function () {
+                    self.closeModal();
+                    self.refreshBillListView();
+                })
+                .fail(function (xhr) {
+                    alert("新增失敗：" + (xhr.responseJSON?.message || "請洽系統管理員"));
+                });
+        });
+    }
+
+    openEditBillModal(bill) {
+        var self = this;
+        const billId = bill.BillId;
+        this.showModal("編輯帳單", this.getBillForm(bill), () => {
+            const payload = self._readBillFormPayload();
+            if (!payload.BillName || !payload.Frequency) {
+                alert("請填寫帳單名稱與頻率規則");
+                return;
+            }
+            $.ajax({
+                url: `/api/finance/bills/${billId}`,
+                type: "PUT",
+                contentType: "application/json",
+                data: JSON.stringify(payload),
+            })
+                .done(function () {
+                    self.closeModal();
+                    self.refreshBillListView();
+                })
+                .fail(function (xhr) {
+                    alert("更新失敗：" + (xhr.responseJSON?.message || "請洽系統管理員"));
+                });
+        });
+    }
+
+    confirmDeleteBill(bill) {
+        var self = this;
+        const billId = bill.BillId;
+        const name = String(bill.BillName || "");
+        this.showModal("刪除帳單", `<p>確定要刪除「${name}」嗎？此操作會將帳單停用（軟刪除），不影響已展開的每月支出估算歷史紀錄。</p>`, () => {
+            $.ajax({ url: "/api/finance/bills/" + billId, type: "DELETE" })
+                .done(function () {
+                    self.closeModal();
+                    self.refreshBillListView();
                 })
                 .fail(function (xhr) {
                     alert("刪除失敗：" + (xhr.responseJSON?.message || "請洽系統管理員"));
@@ -3560,53 +3794,6 @@ class FinanceApp {
                 noteEl.textContent =
                     "預估值 =「帳單管理」中下個月會發生的固定帳單 ＋ 近 3 個月變動支出的中位數（已排除跟固定帳單名稱對得上的交易，避免重複計算；用中位數是為了不被單一異常大額支出的月份拉偏）。";
             }
-        });
-    }
-
-    // 「總覽 > 資產」頁面的「依分類資產分布」：純前端把最新月份的帳戶餘額
-    // 跟使用者在「設定 > 帳戶分類」設定的分類 join 起來分組加總，
-    // 完全不影響上面既有的資產/負債/淨資產統計卡片與圖表（那組是用餘額正負號判斷，兩套邏輯互不相干）
-    renderAssetCategoryBreakdown() {
-        var self = this;
-        var container = document.getElementById("assetCategoryBreakdownGrid");
-        if (!container) return;
-        $(container).empty();
-
-        $.get("/api/finance/accounts/months").then(function (months) {
-            var latestMonth = months && months[0] ? months[0] : "";
-            return $.when($.get("/api/finance/accounts", { month: latestMonth }), $.get("/api/finance/account-categories")).then(function (accountsRes, categoriesRes) {
-                var accounts = accountsRes[0] || [];
-                var categories = categoriesRes[0] || [];
-
-                var categoryMap = {};
-                categories.forEach((c) => {
-                    categoryMap[c.OrganizationName + " " + c.AccountName] = c.Category || "";
-                });
-
-                var totals = {};
-                accounts.forEach((a) => {
-                    var key = a.OrganizationName + " " + a.AccountName;
-                    var cat = categoryMap[key] || "未分類";
-                    totals[cat] = (totals[cat] || 0) + Number(a.AccountBalance || 0);
-                });
-
-                var rows = Object.keys(totals)
-                    .map((cat) => ({ category: cat, total: totals[cat] }))
-                    .sort((a, b) => b.total - a.total);
-
-                var cols = [
-                    { field: "category", headerName: "分類", flex: 1, minWidth: 140 },
-                    {
-                        field: "total",
-                        headerName: (latestMonth || "最新月份") + " 合計",
-                        width: 180,
-                        valueFormatter: (params) => self.formatCurrency(params.value),
-                        cellStyle: (params) => self.getCellStyle(params.value),
-                    },
-                ];
-
-                self.createDetailGrid("assetCategoryBreakdown", "assetCategoryBreakdownGrid", cols, rows);
-            });
         });
     }
 

@@ -1,7 +1,8 @@
 # JazzerLife 環境設定文件
 
-**最後更新：** 2026 年 7 月 30 日（v9：新增交易日誌模組 — cTrader Records + TradingView 訂單匯入分析，含出場方式分類/隱含成本/滑價分析，含 TRADING schema 部署方式）
+**最後更新：** 2026 年 7 月 31 日（v10：Finance 模組多項調整 — 分類分析/總覽卡片 UI 精簡、專案摘要列表達成率改以「預期資產 vs 實際資產」計算、帳單管理新增編輯/刪除（`FIN.Bill` 補上 `BillID` 主鍵）、專案現金流命中明細新增「專案層面排除」機制，含 2 支新 SQL 腳本部署方式）
 **歷史版本：**
+- v9（2026 年 7 月 30 日）：新增交易日誌模組 — cTrader Records + TradingView 訂單匯入分析，含出場方式分類/隱含成本/滑價分析，含 TRADING schema 部署方式
 - v8（2026 年 7 月 29 日）：租屋處電費管理模組複製圖片穩定性修正 — 整表/單一房間/電費明細三種複製皆改為離屏靜態表格擷取，並移除與 html2canvas 衝突的 sticky 房間欄位
 - v7（2026 年 7 月 29 日）：租屋處電費管理模組手機版 UI 優化 — 表格加大、操作按鈕排版調整（原同時嘗試的 sticky 房間欄位固定，已於 v8 移除）
 - v6（2026 年 7 月 28 日）：新增租屋處電費管理模組 — 房間房租/電費計算、公共電費雙月抄表試算，含 RENT schema 部署方式
@@ -105,6 +106,12 @@
 > 3. `scripts/sql/trading_schema_add_exit_quality_2026-07-30.sql`（`Trade` 新增 `ExitReason`、`ExitSlippage` 欄位，供出場方式分類與滑價分析）
 >
 > 三支皆內含 `IF NOT EXISTS` 防呆、可重複執行，且依序有相依關係（第 2、3 支皆假設第 1 支已先執行過）。結構備份分別存於 `db_backup/trading_schema_backup_2026-07-30.md`、`db_backup/trading_schema_add_ctrader_records_backup_2026-07-30.md`、`db_backup/trading_schema_remove_position_history_import_2026-07-30.md`、`db_backup/trading_schema_add_exit_quality_backup_2026-07-30.md`。**測試機與正式機目前皆尚未執行**，部署前務必先於 SSMS 手動跑過這三支腳本，否則 `/api/trading/*` 系列 API 會全部失敗。另需 `dotnet restore` 還原新增的 ClosedXML 套件（供解析 cTrader `.xlsx` 匯出檔）。
+
+> **FIN schema 異動（2026-07-31，帳單管理 BillID + 專案現金流排除）部署方式：** 需在部署前於 SSMS 對 JazzerLife 資料庫依序手動執行：
+> 1. `scripts/sql/finance_bill_add_id_2026-07-31.sql`（`FIN.Bill` 原本 `HasNoKey()`，新增 `BillID INT IDENTITY(1,1)` 並設為主鍵，既有資料列由 SQL Server 自動依序補號，才能支援單一帳單的編輯/刪除）
+> 2. `scripts/sql/finance_project_cashflow_exclusion_2026-07-31.sql`（新增 `FIN.ProjectCashflowExclusion` 表，記錄「這筆明細在這個專案被手動排除」，供專案現金流命中明細的「專案層面排除」功能使用，不影響 `Detail.IsExcluded` 或其他專案）
+>
+> 兩支皆內含 `IF NOT EXISTS` 防呆、可重複執行，彼此互不相依。結構備份分別存於 `db_backup/finance_bill_add_id_backup_2026-07-31.md`、`db_backup/finance_project_cashflow_exclusion_backup_2026-07-31.md`。**測試機與正式機目前皆尚未執行**，部署前務必先於 SSMS 手動跑過這兩支腳本，否則 `GET/PUT/DELETE /api/finance/bills*`、`GET/POST /api/finance/projects/{id}/cashflow-matches*` 系列 API 會全部失敗（EF 查不到 `BillID`／`ProjectCashflowExclusion` 資料表）。
 
 ### 正式機連線字串
 
@@ -359,11 +366,11 @@ finance.html / finance.js 為獨立的 Class 架構（FinanceApp）。已完成�
 | 登入機制 | 共用 `/api/auth/*` | 完成（`_uidPrefix` 已改用已知 userId，不再查詢資料庫） |
 | 總覽（資產走勢/現金流） | `/api/finance/overview` | 完成 |
 | 明細（收支/分類分析/編輯/排除） | `/api/finance/details`、`/details/batch`、`/details/{id}/toggle-exclude`、`/category-analysis` | 完成 |
-| 專案列表（CRUD + KPI） | `/api/finance/projects` | 完成 |
+| 專案列表（CRUD + KPI） | `/api/finance/projects` | 完成；摘要列表「達成率」改為「上月預期資產 vs 上月實際資產」（2026-07-31，詳見下方設計決策） |
 | 專案詳情 - 資產流 | `/api/finance/projects/{id}/assets`、`/assets/trend`、`/assets/apply-all-months` | 完成（追蹤實際淨資產變化） |
-| 專案詳情 - 現金流 | `/api/finance/projects/{id}/cashflow-rules`、`/cashflow-matches` | 完成（追蹤每月實際收支） |
+| 專案詳情 - 現金流 | `/api/finance/projects/{id}/cashflow-rules`、`/cashflow-matches`、`/cashflow-matches/{detailId}/toggle-exclude` | 完成（追蹤每月實際收支）；2026-07-31 新增「專案層面排除」— 命中規則的個別明細可單獨排除於某一專案外，不動 `Detail.IsExcluded`、不影響其他專案 |
 | 專案詳情 - 預期資產變化 | `/api/finance/projects/{id}/expected`、`/expected/generate` | 完成（重新設計：期初資產＝專案預算） |
-| 帳單管理（列表 + 每月支出預測） | `/api/finance/bills` | 完成（頻率展開計算 `computeMonthlyForecast` 保留於前端） |
+| 帳單管理（CRUD + 每月支出預測） | `/api/finance/bills`、`/bills/{billId}`（PUT/DELETE，2026-07-31 新增） | 完成；`FIN.Bill` 原無主鍵，已補上 `BillID` 供編輯/刪除定位單一筆（頻率展開計算 `computeMonthlyForecast` 保留於前端） |
 | 麻布資料上傳（原收支明細上傳） | `/api/finance/upload-details` | 完成（C# CsvHelper 解析，取代原 Python Flask + 排程機制） |
 | 存款帳戶總覽 + 修改結餘 | `/api/finance/accounts`、`/accounts/months`、`/accounts/balance` | 完成 |
 | 投資組合 | — | 決定移除（不再維護） |
@@ -374,6 +381,19 @@ finance.html / finance.js 為獨立的 Class 架構（FinanceApp）。已完成�
 - **資產流**：獨立追蹤淨資產的實際變化，確認是否穩定成長；資料來源為每月綁定的實際銀行帳戶餘額。
 - **現金流**：獨立追蹤每月實際收入/支出；資料來源為關鍵字規則比對交易明細。
 - **預期資產變化**：驗證當初財務規劃假設是否如預期（例如貸款金額 × 預期年化報酬率/利率）；期初資產固定＝建立專案時設定的「預算」，並用年化流入/流出率逐月推算，與資產流、現金流完全獨立、不互相勾稽。
+
+### 設計決策 — 專案摘要列表「達成率」重新定義（2026-07-31）
+
+原本「達成率」＝現金流命中金額 ÷ 建立專案時的預算，2026-07-31 改為「上月實際資產 ÷ 上月預期資產」：
+
+- **上月預期資產**：取「預期資產變化」子系統推算草稿中，實際有資料的最新一列的期末資產（`ComputeRows` 最後一筆 `ClosingAsset`），已改為 `internal` 供 `FinanceProjectEndpoints` 重用同一套推算邏輯。
+- **上月實際資產**：取「資產流」子系統綁定帳戶中，實際有資料的最新月份，且帳戶在「設定 > 帳戶分類」被標成「資產」的帳戶餘額加總；未分類或分類非「資產」（含負債）的帳戶不計入。
+- 兩者皆採「該專案資料實際存在的最新月份」，不強制對齊到日曆上個月，避免資料還沒建到當月時卡片顯示 0。
+
+**尚未解決、待下次規劃：** 這套算法目前只覆蓋「資產全部是可綁定的銀行/證券帳戶、且無槓桿」的專案。使用者已指出至少兩類情境算法不夠用，已提出三個方向但使用者尚未選定（見下方尚待處理事項）：
+1. 槓桿型專案（例如信貸投資股票）：目前用帳戶分類文字篩選「資產」，會把綁定的貸款帳戶（負債）整筆排除，達成率會虛高；候選方案是改用「綁定帳戶餘額直接加總、正負號自動抵銷」（跟總覽頁淨資產算法一致），负债帳戶自然被扣掉。
+2. 非帳戶型資產（例如房地產市值）：`FIN.BankAccount` 目前只能靠 CSV 上傳自動產生月快照，沒有「手動新增/編輯月結餘快照」的功能，這類資產完全進不了資產流系統。
+3. 現金流是否併入「實際資產」數字：房租收入/管理費這類現金流，要不要跟淨值合併成接近「總報酬」的概念，還是維持資產流／現金流兩條線分開由使用者自行對照。
 
 ---
 
@@ -442,6 +462,7 @@ git config --global --add safe.directory <資料夾路徑>
 | — | Rent 模組：手機版 UI 優化（表格字級加大、操作按鈕排版） | 開發完成，待測試機驗證 |
 | — | Rent 模組：複製圖片穩定性修正（整表/單一房間/電費明細改離屏靜態表格擷取；移除與 html2canvas 衝突的 sticky 房間欄位） | 開發完成，待測試機驗證 |
 | — | **Trading 模組（新增）：交易日誌，cTrader Records + TradingView 訂單匯入，績效分析/出場方式分類/隱含成本/滑價分析** | 開發完成，**SQL 腳本尚未於任一環境執行，待測試機驗證** |
+| — | **Finance 模組（2026-07-31）：分類分析表格 UI、總覽資產分頁卡片精簡、專案摘要列表達成率重新定義、帳單管理新增編輯/刪除、專案現金流「專案層面排除」** | 開發完成，**2 支新 SQL 腳本尚未於任一環境執行，待測試機驗證** |
 | 五 | 上線前安全檢查清單 | 尚未開始 |
 
 ### 尚待處理事項
@@ -461,6 +482,8 @@ git config --global --add safe.directory <資料夾路徑>
 - [ ] Rent 模組目前只有前端單一物件視角（無物件切換 UI），資料庫已支援多物件，未來如需擴充多個出租地址只需前端調整。
 - [ ] Trading 模組部署前需先於測試機、正式機 SSMS 依序執行 `scripts/sql/trading_schema.sql`、`trading_schema_add_ctrader_records_2026-07-30.sql`、`trading_schema_add_exit_quality_2026-07-30.sql`，並執行 `dotnet restore` 還原 ClosedXML 套件。
 - [ ] Trading 模組隱含成本分析的合約乘數（每手對應商品單位數）目前只有 BTCUSD 經實際交易驗證為 1，其餘商品暫預設 1，可能不準確，待累積更多商品實際交易資料後擴充對照表（`TradeEndpoints.cs` 內 `TradeCostCalculator.ContractMultipliers`）。
+- [ ] Finance 模組 2026-07-31 異動部署前需先於測試機、正式機 SSMS 依序執行 `scripts/sql/finance_bill_add_id_2026-07-31.sql` 與 `scripts/sql/finance_project_cashflow_exclusion_2026-07-31.sql`（兩支互不相依，順序不拘）。
+- [ ] 專案摘要列表「上月實際資產」算法待進一步規劃（詳見上方設計決策）：(1) 槓桿型專案的負債抵銷方式（帳戶分類文字篩選 vs 餘額正負號直接加總）、(2) 房地產等非帳戶型資產是否新增「手動新增/編輯月結餘快照」功能、(3) 房租/管理費等現金流是否併入實際資產數字。三個方向使用者尚未選定，等有明確需求再實作。
 
 ---
 

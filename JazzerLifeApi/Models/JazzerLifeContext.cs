@@ -49,6 +49,8 @@ public partial class JazzerLifeContext : DbContext
 
     public virtual DbSet<ProjectCashflowRule> ProjectCashflowRules { get; set; }
 
+    public virtual DbSet<ProjectCashflowExclusion> ProjectCashflowExclusions { get; set; }
+
     public virtual DbSet<ProjectExpectedDraft> ProjectExpectedDrafts { get; set; }
 
     public virtual DbSet<ProjectExpectedRow> ProjectExpectedRows { get; set; }
@@ -117,10 +119,12 @@ public partial class JazzerLifeContext : DbContext
 
         modelBuilder.Entity<Bill>(entity =>
         {
-            entity
-                .HasNoKey()
-                .ToTable("Bill", "FIN");
+            // 原本是 HasNoKey()，因帳單編輯/刪除需要精準指定單一筆，改為以 BillID(IDENTITY) 為主鍵，
+            // 需先執行 scripts/sql/finance_bill_add_id_2026-07-31.sql 幫既有資料表補上這個欄位
+            entity.HasKey(e => e.BillId);
+            entity.ToTable("Bill", "FIN");
 
+            entity.Property(e => e.BillId).HasColumnName("BillID").ValueGeneratedOnAdd();
             entity.Property(e => e.Activate).HasMaxLength(1);
             entity.Property(e => e.BillAmount).HasColumnType("decimal(18, 0)");
             entity.Property(e => e.BillEndTime).HasColumnType("datetime");
@@ -480,6 +484,28 @@ public partial class JazzerLifeContext : DbContext
             entity.HasOne(d => d.Project).WithMany(p => p.ProjectCashflowRules)
                 .HasForeignKey(d => d.ProjectId)
                 .HasConstraintName("FK_ProjectCashflowRule_Project");
+        });
+
+        modelBuilder.Entity<ProjectCashflowExclusion>(entity =>
+        {
+            entity.HasKey(e => e.ExclusionId);
+
+            entity.ToTable("ProjectCashflowExclusion", "FIN");
+
+            entity.HasIndex(e => new { e.ProjectId, e.DetailId }, "UQ_ProjectCashflowExclusion_ProjectDetail").IsUnique();
+
+            entity.HasIndex(e => e.ProjectId, "IX_ProjectCashflowExclusion_ProjectId");
+
+            entity.Property(e => e.ExclusionId).HasColumnName("ExclusionID");
+            entity.Property(e => e.ProjectId).HasColumnName("ProjectID");
+            entity.Property(e => e.DetailId).HasColumnName("DetailID");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+
+            entity.HasOne(d => d.Project).WithMany(p => p.ProjectCashflowExclusions)
+                .HasForeignKey(d => d.ProjectId)
+                .HasConstraintName("FK_ProjectCashflowExclusion_Project");
         });
 
         modelBuilder.Entity<ProjectExpectedDraft>(entity =>

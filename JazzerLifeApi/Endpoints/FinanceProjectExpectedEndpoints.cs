@@ -140,7 +140,9 @@ namespace JazzerLifeApi.Endpoints
             });
         }
 
-        private static List<ExpectedRowResult> ComputeRows(decimal baseAsset, List<ProjectExpectedRow> rows)
+        // 改為 internal：專案摘要列表（FinanceProjectEndpoints）需要重用同一套「期初+流入-流出=期末」推算邏輯
+        // 來算「上個月預期資產」，避免兩邊各自實作造成算法不一致
+        internal static List<ExpectedRowResult> ComputeRows(decimal baseAsset, List<ProjectExpectedRow> rows)
         {
             var result = new List<ExpectedRowResult>();
             decimal opening = baseAsset;

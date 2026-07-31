@@ -19,6 +19,7 @@ namespace JazzerLifeApi.Endpoints
                     .OrderByDescending(b => b.CreatedAt)
                     .Select(b => new
                     {
+                        b.BillId,
                         b.BillProjectId,
                         b.BillName,
                         b.Frequency,
@@ -58,7 +59,49 @@ namespace JazzerLifeApi.Endpoints
                 db.Bills.Add(bill);
                 await db.SaveChangesAsync();
 
-                return Results.Ok(new { message = "已新增帳單" });
+                return Results.Ok(new { message = "已新增帳單", billId = bill.BillId });
+            });
+
+            // 編輯帳單
+            app.MapPut("/api/finance/bills/{billId:int}", async (int billId, BillCreateRequest req, ClaimsPrincipal user, JazzerLifeContext db) =>
+            {
+                var userId = GetUserId(user);
+                if (userId == null) return Results.Json(new { message = "未登入" }, statusCode: 401);
+
+                if (string.IsNullOrWhiteSpace(req.BillName) || string.IsNullOrWhiteSpace(req.Frequency))
+                    return Results.BadRequest(new { message = "請填寫帳單名稱與頻率規則" });
+
+                // 需同時確認 UserId 相符，避免跨帳號用猜測的 billId 改到別人的帳單
+                var bill = await db.Bills.FirstOrDefaultAsync(b => b.BillId == billId && b.UserId == userId && b.Activate == "1");
+                if (bill == null) return Results.Json(new { message = "找不到帳單或無權限" }, statusCode: 403);
+
+                bill.BillProjectId = req.BillProjectId;
+                bill.BillName = req.BillName;
+                bill.Frequency = req.Frequency;
+                bill.BillStartTime = req.BillStartTime ?? bill.BillStartTime;
+                bill.BillEndTime = req.BillEndTime;
+                bill.BillAmount = req.BillAmount;
+                bill.Note = req.Note;
+                bill.UpdatedAt = DateTime.Now;
+
+                await db.SaveChangesAsync();
+                return Results.Ok(new { message = "已更新帳單" });
+            });
+
+            // 刪除帳單（軟刪除，沿用專案管理同一套 Activate 欄位慣例，保留歷史資料不影響已展開的每月支出估算記錄）
+            app.MapDelete("/api/finance/bills/{billId:int}", async (int billId, ClaimsPrincipal user, JazzerLifeContext db) =>
+            {
+                var userId = GetUserId(user);
+                if (userId == null) return Results.Json(new { message = "未登入" }, statusCode: 401);
+
+                var bill = await db.Bills.FirstOrDefaultAsync(b => b.BillId == billId && b.UserId == userId && b.Activate == "1");
+                if (bill == null) return Results.Json(new { message = "找不到帳單或無權限" }, statusCode: 403);
+
+                bill.Activate = "0";
+                bill.UpdatedAt = DateTime.Now;
+                await db.SaveChangesAsync();
+
+                return Results.Ok(new { message = "已刪除帳單" });
             });
         }
 

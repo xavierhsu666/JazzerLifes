@@ -133,7 +133,7 @@
 
         <!-- 統計卡片區 -->
         <div class="stats-cards">
-          <!-- 月對月比較 -->
+          <!-- 月對月比較：只留淨資產差與百分比 -->
           <div class="stat-card">
             <div class="stat-card-header">
               <span class="stat-icon">📈</span>
@@ -141,14 +141,14 @@
             </div>
             <div class="stat-card-body">
               <div class="stat-value" id="statMoM">
-                <span class="stat-amount">收入 +NT$ 15,000</span>
+                <span class="stat-amount">淨資產差 +NT$ 15,000</span>
                 <span class="stat-percentage positive">+5.8%</span>
                 <p class="stat-description">相較上月 (11月)</p>
               </div>
             </div>
           </div>
 
-          <!-- 年對年比較 -->
+          <!-- 年對年比較：只留淨資產差與百分比 -->
           <div class="stat-card">
             <div class="stat-card-header">
               <span class="stat-icon">📊</span>
@@ -156,23 +156,22 @@
             </div>
             <div class="stat-card-body">
               <div class="stat-value" id="statYoY">
-                <span class="stat-amount">+NT$ 125,000</span>
+                <span class="stat-amount">淨資產差 +NT$ 125,000</span>
                 <span class="stat-percentage positive">+83.3%</span>
               </div>
             </div>
           </div>
 
-          <!-- 本月收支結餘 -->
+          <!-- 本月資產結餘：只留結餘與資產/負債大小關係 -->
           <div class="stat-card">
             <div class="stat-card-header">
               <span class="stat-icon">💰</span>
-              <h3 class="stat-title">本月收支結餘</h3>
+              <h3 class="stat-title">本月資產結餘</h3>
             </div>
             <div class="stat-card-body">
               <div class="stat-value" id="statBalance">
-                <span class="stat-amount">+NT$ 19,000</span>
-                <span class="stat-percentage positive">收入 > 支出</span>
-                <p class="stat-description">收入 NT$ 75,000 | 支出 NT$ 56,000</p>
+                <span class="stat-amount">結餘 +NT$ 19,000</span>
+                <span class="stat-percentage positive">資產 > 負債</span>
               </div>
             </div>
           </div>
@@ -198,11 +197,6 @@
           <div id="expenseForecastGrid" class="ag-theme-quartz-dark" style="height: 300px;"></div>
         </div>
 
-        <!-- 依分類資產分布：用「設定 > 帳戶分類」設定的分類，彙總最新月份各分類的餘額合計 -->
-        <div class="table-container" style="margin-top: 16px;">
-          <h3 class="pd-card-title" style="margin-bottom: 12px;">依分類資產分布</h3>
-          <div id="assetCategoryBreakdownGrid" class="ag-theme-quartz-dark" style="height: 260px;"></div>
-        </div>
       </section>
 
       <!-- 總覽 - 現金流 -->
@@ -514,6 +508,7 @@
             <div class="pd-toolbar" style="margin-bottom: 10px;">
               <button class="btn-secondary" id="pdAddRule">新增規則</button>
               <button class="btn-secondary" id="pdCashflowAllMonths">顯示所有月份命中</button>
+              <button class="btn-secondary" id="pdCashflowShowExcluded">顯示已排除</button>
             </div>
             <div class="pd-stats">
               <span class="pd-chip" id="pdHitCount">命中筆數：0</span>
@@ -554,7 +549,7 @@
         <div class="view-header">
           <h2 class="view-title">帳單列表</h2>
           <div class="view-actions">
-            <button class="btn-secondary" id="btnAddTransaction">新增帳戶</button>
+            <button class="btn-primary" id="btnAddBill">新增帳單</button>
           </div>
         </div>
         <div class="table-container">
