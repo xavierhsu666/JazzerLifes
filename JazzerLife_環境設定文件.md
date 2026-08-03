@@ -151,7 +151,7 @@ ALTER ROLE db_datawriter ADD MEMBER [IIS APPPOOL\JazzerLifeAppPool];
 |---|---|
 | 儲存庫可見性 | 公開 Repo（免費） |
 | 分支策略 | 單一 `main` 分支，正式機與測試機皆直接使用，不使用 feature branch |
-| Clone 路徑（測試機） | `E:\Project\JazzerLifes\JazzerLifeApi`（clone 上層 `JazzerLife` 目錄，讓 `scripts` 資料夾一併納入版控） |
+| Clone 路徑（測試機） | `E:\Project\JazzerLifes`（clone 的是上層 `JazzerLife` 目錄本身，讓 `scripts`、`db_backup` 等資料夾一併納入版控；`.git` 在此路徑下，不是在 `JazzerLifeApi` 子目錄裡——2026-08-03 修正原本表格寫錯層級的筆誤） |
 | Clone 路徑（正式機） | `C:\Users\ServerDeployArea\JazzerLife` |
 
 ### 重要：`appsettings.json` 不進版控
@@ -198,6 +198,31 @@ Start-WebAppPool -Name "JazzerLifeAppPool"
 - 若跨使用者操作同一個 clone 資料夾，可能出現 `detected dubious ownership` 錯誤，需執行：
   ```powershell
   git config --global --add safe.directory <資料夾路徑>
+  ```
+- **`.git/index.lock` 等鎖定檔殘留（2026-08-03 新增）**：git 指令若中途被中斷（例如終端機被關掉、指令卡住被強制結束），`.git` 目錄下會留下 `.lock` 檔案，之後任何 git 操作都會出現「Unable to create '.git/xxx.lock': File exists」而卡住。**執行前務必先確認沒有其他 git 指令正在跑**，確認後可用以下腳本清除：
+  ```powershell
+  # 清除測試機 JazzerLife repo 殘留的 git 鎖定檔
+  $repoPath = "E:\Project\JazzerLifes"
+
+  $gitProc = Get-Process git -ErrorAction SilentlyContinue
+  if ($gitProc) {
+      Write-Warning "偵測到 git.exe 行程正在執行中（PID: $($gitProc.Id -join ', ')），請先確認該指令是否已完成，再重新執行本腳本。"
+      return
+  }
+
+  $lockFiles = @(
+      "$repoPath\.git\index.lock",
+      "$repoPath\.git\HEAD.lock",
+      "$repoPath\.git\config.lock",
+      "$repoPath\.git\packed-refs.lock",
+      "$repoPath\.git\refs\heads\main.lock"
+  )
+  foreach ($lock in $lockFiles) {
+      if (Test-Path $lock) {
+          Remove-Item $lock -Force
+          Write-Host "已移除: $lock" -ForegroundColor Green
+      }
+  }
   ```
 
 ---
@@ -337,12 +362,13 @@ Start-WebAppPool -Name "<集區名稱>"
 
 | 功能 | 新 API | 狀態 |
 |---|---|---|
-| 登入 / 登出 / 身份確認 | `/api/auth/login`、`/api/auth/logout`、`/api/auth/me` | 完成（Cookie session，BCrypt 雜湊） |
+| 登入 / 登出 / 身份確認 | `/api/auth/login`、`/api/auth/logout`、`/api/auth/me` | 完成（Cookie session，BCrypt 雜湊）；**2026-08-03 起 car.html 導覽列拿掉獨立的 LogOut 按鈕**（`/api/auth/logout` API 本身沒動，首頁 index.html 的登入/登出流程不受影響） |
 | 車輛 CRUD | `/api/vehicles`、`/api/my-vehicles` | 完成 |
-| 油耗紀錄（查詢/新增） | `/api/vehicles/{id}/fuel` | 完成 |
+| 油耗紀錄（查詢/新增） | `/api/vehicles/{id}/fuel` | 完成；趨勢圖表 2026-08-03 改用 Highcharts `scrollablePlotArea`（詳見下方異動記錄） |
 | Dashboard 綜合查詢 | `/api/dashboard/{id}` | 完成 |
-| 保養週期設定（CRUD+推薦） | `/api/vehicles/{id}/cycles`、`/cycles/recommend` | 完成 |
-| 保養紀錄（查詢/新增/刪除） | `/api/vehicles/{id}/maintenance` | 完成 |
+| 保養週期設定（CRUD+推薦） | `/api/vehicles/{id}/cycles`、`/cycles/recommend` | 完成；2026-08-03 起建議週期只納入分類「例行」「保養」的紀錄 |
+| 保養紀錄（查詢/新增/刪除） | `/api/vehicles/{id}/maintenance` | 完成；2026-08-03 新增可綁定 `CategoryId` |
+| 保養分類 CRUD（新增 2026-08-03） | `/api/part-categories` | 完成，沿用既有 `CarMan.PartCategories` 資料表（Model 早已 scaffold，未新增 SQL） |
 | 安全報表查詢（取代 meta_sql） | `/api/reports/query` | 完成（僅限單一 SELECT，黑名單防護） |
 
 - 密碼安全性：資料庫 User 表密碼已由明碼一次性轉換為 BCrypt 雜湊（遷移用 endpoint 已移除）。
@@ -354,6 +380,15 @@ Start-WebAppPool -Name "<集區名稱>"
 - 新增響應式導航：桌面顯示側邊欄（`.app-sidebar`），手機（≤767px）改用底部固定導覽列（`.app-bottom-nav`），樣式檔為 `assets/css/car-layout.css`。
 - ag-Grid 效能優化：`carGrid()` 改為表格已存在時用 `setGridOption("rowData", ...)` 更新資料，不重新 `createGrid`。
 - 手機表格顯示：改為橫向捲動（`.car-grid { overflow-x: auto }`，`.ag-root-wrapper { min-width: 640px }`）。
+
+### 異動記錄（2026-08-03）— 保養分類 + 油耗趨勢圖表修正
+
+- **油耗趨勢圖表**：Dashboard `#chart_area`、油耗紀錄 `#oilTrendChart` 原本沒有規劃寬度，月份一多時 Highcharts 會把所有類別硬擠進可視寬度，柱子被壓到不到 1px、刻度文字也被自動略過，視覺上像只顯示十幾筆資料。比照 `finance.js` 既有的 `getMobileChartTweaks` 手法，改用 `scrollablePlotArea` 讓每個類別保留足夠寬度，超出時橫向捲動查看。
+- **保養分類管理**：新增 `PartCategoryEndpoints.cs`（`/api/part-categories` CRUD），沿用資料庫既有的 `CarMan.PartCategories` 資料表（Model 先前已 scaffold 好，本次**未新增 SQL 腳本**）；前端獨立成「保養分類」頁籤（`categorytable` section），新增/刪除分類，分類已被保養紀錄使用中時禁止刪除。
+- **保養紀錄綁定分類**：新增保養時可選擇分類（選填），保養紀錄清單顯示分類欄位；建議保養週期（`/cycles/recommend`）改為只納入分類「例行」「保養」的歷史紀錄，需使用者在「保養分類」頁籤建立完全一致的分類名稱才會被納入計算。
+- **表單體驗微調**：分類下拉選單樣式從 `form-select` 改為 `form-control`（本專案用 Bootstrap 4，沒有 `.form-select` 樣式定義，用 `form-select` 會退回瀏覽器原生外觀、跟其他欄位不一致）；新增保養時里程欄位若空白會自動帶入目前已知最大里程（`/latest-odometer`，油耗+保養兩者取大者），使用者仍可覆寫。
+- **移除 car 頁面 LogOut**：只拿掉 car.html 導覽列與 car.js 的 `handleSignOut()`，首頁 index.html 的登入/登出按鈕未變動。
+- 本次**無資料庫結構異動**，部署只需 `dotnet publish`，不需額外執行 SQL 腳本。
 
 ---
 
@@ -463,6 +498,7 @@ git config --global --add safe.directory <資料夾路徑>
 | — | Rent 模組：複製圖片穩定性修正（整表/單一房間/電費明細改離屏靜態表格擷取；移除與 html2canvas 衝突的 sticky 房間欄位） | 開發完成，待測試機驗證 |
 | — | **Trading 模組（新增）：交易日誌，cTrader Records + TradingView 訂單匯入，績效分析/出場方式分類/隱含成本/滑價分析** | 開發完成，**SQL 腳本尚未於任一環境執行，待測試機驗證** |
 | — | **Finance 模組（2026-07-31）：分類分析表格 UI、總覽資產分頁卡片精簡、專案摘要列表達成率重新定義、帳單管理新增編輯/刪除、專案現金流「專案層面排除」** | 開發完成，**2 支新 SQL 腳本尚未於任一環境執行，待測試機驗證** |
+| — | **car 模組（2026-08-03）：保養分類管理（新增/綁定/建議週期篩選）、油耗趨勢圖表 scrollablePlotArea 修正、移除 car 頁 LogOut** | 開發完成，**無 SQL 待執行**，可直接部署 |
 | 五 | 上線前安全檢查清單 | 尚未開始 |
 
 ### 尚待處理事項
@@ -484,6 +520,7 @@ git config --global --add safe.directory <資料夾路徑>
 - [ ] Trading 模組隱含成本分析的合約乘數（每手對應商品單位數）目前只有 BTCUSD 經實際交易驗證為 1，其餘商品暫預設 1，可能不準確，待累積更多商品實際交易資料後擴充對照表（`TradeEndpoints.cs` 內 `TradeCostCalculator.ContractMultipliers`）。
 - [ ] Finance 模組 2026-07-31 異動部署前需先於測試機、正式機 SSMS 依序執行 `scripts/sql/finance_bill_add_id_2026-07-31.sql` 與 `scripts/sql/finance_project_cashflow_exclusion_2026-07-31.sql`（兩支互不相依，順序不拘）。
 - [ ] 專案摘要列表「上月實際資產」算法待進一步規劃（詳見上方設計決策）：(1) 槓桿型專案的負債抵銷方式（帳戶分類文字篩選 vs 餘額正負號直接加總）、(2) 房地產等非帳戶型資產是否新增「手動新增/編輯月結餘快照」功能、(3) 房租/管理費等現金流是否併入實際資產數字。三個方向使用者尚未選定，等有明確需求再實作。
+- [ ] car 模組保養分類（2026-08-03 新增）：建議保養週期只會納入分類名稱**完全等於**「例行」「保養」的紀錄，需使用者自行在「保養分類」頁籤建立這兩個分類（系統不會自動 seed）；歷史上沒設分類的舊保養紀錄也不會被納入建議計算，除非事後手動補分類（目前無批次補分類的功能，需要的話可再開發）。
 
 ---
 

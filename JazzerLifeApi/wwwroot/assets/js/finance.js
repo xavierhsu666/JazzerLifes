@@ -416,6 +416,7 @@ class FinanceApp {
             overview: [
                 { id: "asset-trend", label: "資產" },
                 { id: "cash-flow", label: "現金流" },
+                { id: "expense-forecast", label: "預估支出" },
             ],
             details: [
                 { id: "transaction-details", label: "總收支明細" },
@@ -881,7 +882,6 @@ class FinanceApp {
                     selfObj.initCharts_byViewId(data, viewId, "assetTrendChart");
                     selfObj.updateStatCards(viewId);
                 });
-                selfObj.renderExpenseForecast();
                 break;
             case "cash-flow":
                 $("#cashFlowChart").empty();
@@ -889,6 +889,16 @@ class FinanceApp {
                     var data = selfObj.data.assets;
                     selfObj.initCharts_byViewId(data, viewId, "cashFlowChart");
                     selfObj.updateStatCards(viewId);
+                });
+                break;
+            case "expense-forecast":
+                // 「下月預估開支」卡片與逐月圖表都要用到 assets(月支出實際值)/bills(固定帳單)/detail(變動支出)，
+                // 這裡統一先載好資料再各自 render，避免 renderExpenseForecast 內部再重複打一次 bills/detail API
+                $("#expenseForecastChart").empty();
+                $.when(selfObj.load_data("assets"), selfObj.load_data("bills"), selfObj.load_data("detail")).then(function () {
+                    selfObj.renderExpenseForecast();
+                    var chartData = selfObj._buildExpenseForecastChartData();
+                    selfObj.initCharts_byViewId(chartData, viewId, "expenseForecastChart");
                 });
                 break;
             case "transaction-income-details":
@@ -1151,6 +1161,15 @@ class FinanceApp {
                 seriesData = data.filter((x) => x.Type == "Income").map((x) => Math.round(Number(x["total"]) || 0));
                 series.push({ name: "總收入", data: seriesData, color: "#4caf50", marker: { symbol: "circle" } });
                 break;
+            case "expense-forecast": {
+                // 資料由 _buildExpenseForecastChartData() 組好：{ actual: [12], forecast: [12] }，
+                // 兩個 series 在「本月」的前一個月共用同一個數值當銜接點，圖表上線才不會斷開
+                const months = ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"];
+                categories = months;
+                series.push({ name: "實際支出", data: data.actual, color: "#ff5722", marker: { symbol: "circle" } });
+                series.push({ name: "預估支出", data: data.forecast, color: "#ffab91", dashStyle: "Dash", marker: { symbol: "diamond" } });
+                break;
+            }
             case "project-management":
                 categories = data.map((x) => x["BillProjectId"]);
                 series.push({ name: "收入", data: data.map((x) => Math.round(Math.abs(Number(x["Income"] || 0)))), color: "#4caf50" });
@@ -1169,12 +1188,14 @@ class FinanceApp {
             "cash-flow": "現金流量走勢",
             "project-management": "專案收支對比",
             "bills-expense-monthly": "每月支出預測",
+            "expense-forecast": "本年度支出：實際 vs 預估",
         };
         var type = {
             "asset-trend": "line",
             "cash-flow": "line",
             "project-management": "column",
             "bills-expense-monthly": "column",
+            "expense-forecast": "line",
         };
         var self = this;
         var { categories, series } = this._getChartParams_byViewId(viewId, data);
@@ -3668,133 +3689,204 @@ class FinanceApp {
         var nextMonthLabel = `${nextYear}-${String(nextMonth).padStart(2, "0")}`;
         var LOOKBACK_MONTHS = 3;
 
-        $.when(this.load_data("bills"), this.load_data("detail")).then(function () {
-            var bills = self.data.bills || [];
-            var details = self.data.details || [];
+        // 呼叫端（switchView 的 "expense-forecast" case）已經先用
+        // $.when(load_data("assets"), load_data("bills"), load_data("detail")) 備好資料，
+        // 這裡直接讀 self.data，避免切到本頁籤時重複打一次 bills/detail API
+        var bills = self.data.bills || [];
+        var details = self.data.details || [];
 
-            // --- 1. 下個月的固定帳單 ---
-            var billRows = [];
-            var billTotal = 0;
-            try {
-                var forecast = computeMonthlyForecast(bills, nextYear);
-                var monthBreakdown = (forecast.breakdown || []).find((b) => b.month === nextMonth);
-                (monthBreakdown ? monthBreakdown.items : []).forEach((item) => {
-                    billRows.push({
-                        type: "固定帳單",
-                        name: `${item.name}${item.count > 1 ? ` ×${item.count}` : ""}`,
-                        note: item.billProject || "",
-                        amount: Math.round(Number(item.subtotal) || 0),
-                    });
-                });
-                billTotal = billRows.reduce((s, r) => s + r.amount, 0);
-            } catch (err) {
-                // 帳單頻率字串若有無法解析的格式，不要讓整張卡片壞掉，只是這段估不出來
-                console.warn("計算下月固定帳單失敗：", err);
-            }
-
-            // --- 2. 判斷一筆交易明細是不是「已經算在帳單管理的固定帳單裡」，避免重複計算 ---
-            var billKeywords = [...new Set(bills.map((b) => String(b.BillName || "").trim()).filter(Boolean))].map((k) => k.toLowerCase());
-            var matchesBillKeyword = (row) => {
-                if (!billKeywords.length) return false;
-                var haystack = [row.Description, row.Category, row.AccountName, row.OrganizationName, row.Tag, row.Notes]
-                    .filter(Boolean)
-                    .join(" ")
-                    .toLowerCase();
-                return billKeywords.some((k) => haystack.includes(k));
-            };
-
-            // --- 3. 近 3 個月「變動支出」（排除已對應到固定帳單的交易），逐月列出 ---
-            var recentMonths = [];
-            for (var i = 1; i <= LOOKBACK_MONTHS; i++) {
-                var d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                recentMonths.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-            }
-            recentMonths.reverse(); // 由舊到新，方便閱讀
-
-            var variableByMonth = {};
-            var excludedByMonth = {};
-            var monthsWithAnyData = new Set();
-            details.forEach((row) => {
-                var ym = String(row.YearMonth || "").trim();
-                if (!recentMonths.includes(ym)) return;
-                monthsWithAnyData.add(ym);
-                var amount = Number(row.Amount || 0);
-                if (amount >= 0) return; // 只算支出
-                if (matchesBillKeyword(row)) {
-                    excludedByMonth[ym] = (excludedByMonth[ym] || 0) + -amount;
-                    return; // 已經算在固定帳單裡，變動支出不重複計算
-                }
-                variableByMonth[ym] = (variableByMonth[ym] || 0) + -amount;
-            });
-
-            // 只取「真的有交易資料」的月份，避免把還沒匯入資料的月份當成 0 元月份
-            var qualifyingMonths = recentMonths.filter((m) => monthsWithAnyData.has(m));
-            var monthlyVariableAmounts = qualifyingMonths.map((m) => Math.round(variableByMonth[m] || 0));
-
-            var median = (nums) => {
-                if (!nums.length) return 0;
-                var sorted = [...nums].sort((a, b) => a - b);
-                var mid = Math.floor(sorted.length / 2);
-                return sorted.length % 2 === 0 ? Math.round((sorted[mid - 1] + sorted[mid]) / 2) : sorted[mid];
-            };
-            var medianVariable = median(monthlyVariableAmounts);
-
-            // --- 4. 組出明細表格：固定帳單列 + 近 3 個月變動支出列（含已排除金額備註）+ 中位數列 + 合計 ---
-            var rows = billRows.slice();
-            qualifyingMonths.forEach((m) => {
-                var excluded = Math.round(excludedByMonth[m] || 0);
-                rows.push({
-                    type: "近期變動支出",
-                    name: `${m} 變動支出`,
-                    note: excluded ? `另有 NT$ ${excluded.toLocaleString()} 已算在固定帳單，不重複計` : "",
-                    amount: Math.round(variableByMonth[m] || 0),
+        // --- 1. 下個月的固定帳單 ---
+        var billRows = [];
+        var billTotal = 0;
+        try {
+            var forecast = computeMonthlyForecast(bills, nextYear);
+            var monthBreakdown = (forecast.breakdown || []).find((b) => b.month === nextMonth);
+            (monthBreakdown ? monthBreakdown.items : []).forEach((item) => {
+                billRows.push({
+                    type: "固定帳單",
+                    name: `${item.name}${item.count > 1 ? ` ×${item.count}` : ""}`,
+                    note: item.billProject || "",
+                    amount: Math.round(Number(item.subtotal) || 0),
                 });
             });
+            billTotal = billRows.reduce((s, r) => s + r.amount, 0);
+        } catch (err) {
+            // 帳單頻率字串若有無法解析的格式，不要讓整張卡片壞掉，只是這段估不出來
+            console.warn("計算下月固定帳單失敗：", err);
+        }
+
+        // --- 2~3. 近 3 個月「變動支出」中位數：抽成 _computeRecentVariableExpenseMedian() 共用方法，
+        // 「總覽 > 預估支出」的逐月圖表（_buildExpenseForecastChartData）也呼叫同一個方法，
+        // 確保卡片跟圖表算出來的數字一致，不會有兩套算法各自飄移 ---
+        var median = self._computeRecentVariableExpenseMedian(bills, details, now, LOOKBACK_MONTHS);
+        var qualifyingMonths = median.qualifyingMonths;
+        var variableByMonth = median.variableByMonth;
+        var excludedByMonth = median.excludedByMonth;
+        var medianVariable = median.medianVariable;
+
+        // --- 4. 組出明細表格：固定帳單列 + 近 3 個月變動支出列（含已排除金額備註）+ 中位數列 + 合計 ---
+        var rows = billRows.slice();
+        qualifyingMonths.forEach((m) => {
+            var excluded = Math.round(excludedByMonth[m] || 0);
             rows.push({
-                type: "中位數",
-                name: `近 ${qualifyingMonths.length} 個月變動支出中位數`,
-                note: qualifyingMonths.length < LOOKBACK_MONTHS ? `資料不足 ${LOOKBACK_MONTHS} 個月，先以現有月份計算` : "",
-                amount: medianVariable,
+                type: "近期變動支出",
+                name: `${m} 變動支出`,
+                note: excluded ? `另有 NT$ ${excluded.toLocaleString()} 已算在固定帳單，不重複計` : "",
+                amount: Math.round(variableByMonth[m] || 0),
             });
-            var total = billTotal + medianVariable;
-            rows.push({ type: "＝ 合計 ＝", name: "", note: "", amount: total, _isTotal: true });
+        });
+        rows.push({
+            type: "中位數",
+            name: `近 ${qualifyingMonths.length} 個月變動支出中位數`,
+            note: qualifyingMonths.length < LOOKBACK_MONTHS ? `資料不足 ${LOOKBACK_MONTHS} 個月，先以現有月份計算` : "",
+            amount: medianVariable,
+        });
+        var total = billTotal + medianVariable;
+        rows.push({ type: "＝ 合計 ＝", name: "", note: "", amount: total, _isTotal: true });
 
-            var cols = [
-                { field: "type", headerName: "類型", width: 120, minWidth: 110 },
-                { field: "name", headerName: "項目", flex: 1.4, minWidth: 160 },
-                { field: "note", headerName: "說明", flex: 1.4, minWidth: 180 },
-                {
-                    field: "amount",
-                    headerName: "預估金額",
-                    width: 150,
-                    minWidth: 130,
-                    valueFormatter: (params) => "NT$ " + Math.round(Number(params.value || 0)).toLocaleString(),
-                    cellStyle: () => ({ color: "#ff8a80", fontWeight: "600" }),
-                },
-            ];
+        var cols = [
+            { field: "type", headerName: "類型", width: 120, minWidth: 110 },
+            { field: "name", headerName: "項目", flex: 1.4, minWidth: 160 },
+            { field: "note", headerName: "說明", flex: 1.4, minWidth: 180 },
+            {
+                field: "amount",
+                headerName: "預估金額",
+                width: 150,
+                minWidth: 130,
+                valueFormatter: (params) => "NT$ " + Math.round(Number(params.value || 0)).toLocaleString(),
+                cellStyle: () => ({ color: "#ff8a80", fontWeight: "600" }),
+            },
+        ];
 
-            self.createDetailGrid("expenseForecast", "expenseForecastGrid", cols, rows);
+        self.createDetailGrid("expenseForecast", "expenseForecastGrid", cols, rows);
 
-            // --- 5. 更新統計卡片與說明文字 ---
-            var titleEl = document.getElementById("statForecastTitle");
-            if (titleEl) {
-                titleEl.textContent = `下月預估開支（${nextMonthLabel}）`;
-            }
-            var cardEl = document.getElementById("statForecast");
-            if (cardEl) {
-                cardEl.innerHTML = `
+        // --- 5. 更新統計卡片與說明文字 ---
+        var titleEl = document.getElementById("statForecastTitle");
+        if (titleEl) {
+            titleEl.textContent = `下月預估開支（${nextMonthLabel}）`;
+        }
+        var cardEl = document.getElementById("statForecast");
+        if (cardEl) {
+            cardEl.innerHTML = `
             <span>固定帳單 NT$ ${billTotal.toLocaleString()}</span>
             <span>變動支出中位數 NT$ ${medianVariable.toLocaleString()}</span>
             <span class="stat-amount">預估 NT$ ${total.toLocaleString()}</span>
             <p class="stat-description">${nextMonthLabel}（依近 ${qualifyingMonths.length} 個月變動支出估算）</p>
         `;
+        }
+        var noteEl = document.getElementById("forecastNote");
+        if (noteEl) {
+            noteEl.textContent =
+                "預估值 =「帳單管理」中下個月會發生的固定帳單 ＋ 近 3 個月變動支出的中位數（已排除跟固定帳單名稱對得上的交易，避免重複計算；用中位數是為了不被單一異常大額支出的月份拉偏）。";
+        }
+    }
+
+    // 共用：近 N 個月「變動支出」中位數計算（排除已對應到帳單管理固定帳單的交易，避免重複計算）。
+    // 「總覽 > 預估支出」的下月預估開支卡片（renderExpenseForecast）與逐月實際/預估支出圖表
+    // （_buildExpenseForecastChartData）都呼叫這個方法，確保兩處算出來的數字一致（沿用同一套邏輯，不重造輪子）。
+    _computeRecentVariableExpenseMedian(bills, details, now, lookbackMonths) {
+        lookbackMonths = lookbackMonths || 3;
+
+        // 判斷一筆交易明細是不是「已經算在帳單管理的固定帳單裡」：比對邏輯比照專案管理「現金流關鍵字規則」的做法（Contains 比對）
+        var billKeywords = [...new Set((bills || []).map((b) => String(b.BillName || "").trim()).filter(Boolean))].map((k) => k.toLowerCase());
+        var matchesBillKeyword = (row) => {
+            if (!billKeywords.length) return false;
+            var haystack = [row.Description, row.Category, row.AccountName, row.OrganizationName, row.Tag, row.Notes]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase();
+            return billKeywords.some((k) => haystack.includes(k));
+        };
+
+        var recentMonths = [];
+        for (var i = 1; i <= lookbackMonths; i++) {
+            var d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            recentMonths.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+        }
+        recentMonths.reverse(); // 由舊到新，方便閱讀
+
+        var variableByMonth = {};
+        var excludedByMonth = {};
+        var monthsWithAnyData = new Set();
+        (details || []).forEach((row) => {
+            var ym = String(row.YearMonth || "").trim();
+            if (!recentMonths.includes(ym)) return;
+            monthsWithAnyData.add(ym);
+            var amount = Number(row.Amount || 0);
+            if (amount >= 0) return; // 只算支出
+            if (matchesBillKeyword(row)) {
+                excludedByMonth[ym] = (excludedByMonth[ym] || 0) + -amount;
+                return; // 已經算在固定帳單裡，變動支出不重複計算
             }
-            var noteEl = document.getElementById("forecastNote");
-            if (noteEl) {
-                noteEl.textContent =
-                    "預估值 =「帳單管理」中下個月會發生的固定帳單 ＋ 近 3 個月變動支出的中位數（已排除跟固定帳單名稱對得上的交易，避免重複計算；用中位數是為了不被單一異常大額支出的月份拉偏）。";
-            }
+            variableByMonth[ym] = (variableByMonth[ym] || 0) + -amount;
         });
+
+        // 只取「真的有交易資料」的月份，避免把還沒匯入資料的月份當成 0 元月份
+        var qualifyingMonths = recentMonths.filter((m) => monthsWithAnyData.has(m));
+        var monthlyVariableAmounts = qualifyingMonths.map((m) => Math.round(variableByMonth[m] || 0));
+
+        var median = (nums) => {
+            if (!nums.length) return 0;
+            var sorted = [...nums].sort((a, b) => a - b);
+            var mid = Math.floor(sorted.length / 2);
+            return sorted.length % 2 === 0 ? Math.round((sorted[mid - 1] + sorted[mid]) / 2) : sorted[mid];
+        };
+
+        return {
+            medianVariable: median(monthlyVariableAmounts),
+            qualifyingMonths: qualifyingMonths,
+            variableByMonth: variableByMonth,
+            excludedByMonth: excludedByMonth,
+        };
+    }
+
+    // 「總覽 > 預估支出」上方圖表用的資料：今年 1~12 月，
+    // 已經完整過完的月份畫「實際支出」（取 /api/finance/overview 已經算好的每月 Expense），
+    // 本月（還在進行中，交易資料不完整、不能當實際值）與之後月份畫「預估支出」，
+    // 預估值＝該月固定帳單金額（computeMonthlyForecast）＋近 3 個月變動支出中位數
+    // （跟「下月預估開支」卡片共用同一個 _computeRecentVariableExpenseMedian，兩邊數字才會一致）。
+    //
+    // 「預估」線在本月的前一個月（最後一個有實際值的月份）多放一個跟「實際」線相同的數值當銜接點，
+    // 純粹是讓兩條線在圖上視覺連續、不要斷開一截，不代表那個月被當成預估值。
+    _buildExpenseForecastChartData() {
+        var self = this;
+        var now = new Date();
+        var year = now.getFullYear();
+        var currentMonthIndex = now.getMonth(); // 0..11，本月(含)之後都視為預估
+        var lastActualIndex = currentMonthIndex - 1;
+
+        var assets = self.data.assets || [];
+        var bills = self.data.bills || [];
+        var details = self.data.details || [];
+
+        var actualByMonth = {};
+        assets
+            .filter((x) => x.Type === "Expense")
+            .forEach((x) => {
+                actualByMonth[x.YearMonth] = Math.round(Number(x.total) || 0);
+            });
+
+        var monthlyForecastTotals = computeMonthlyForecast(bills, year).monthlyTotals;
+        var medianVariable = self._computeRecentVariableExpenseMedian(bills, details, now, 3).medianVariable;
+
+        var actualData = [];
+        var forecastData = [];
+        for (var m = 0; m < 12; m++) {
+            var ym = `${year}-${String(m + 1).padStart(2, "0")}`;
+            var actualValue = actualByMonth[ym] != null ? actualByMonth[ym] : null;
+
+            actualData.push(m < currentMonthIndex ? actualValue : null);
+
+            if (m > lastActualIndex) {
+                forecastData.push(Math.round(monthlyForecastTotals[m] || 0) + medianVariable);
+            } else if (m === lastActualIndex) {
+                forecastData.push(actualValue); // 銜接點：跟「實際支出」同一格同一個值，圖上兩條線才不會斷開
+            } else {
+                forecastData.push(null);
+            }
+        }
+
+        return { actual: actualData, forecast: forecastData, year: year };
     }
 
     // ---------- 設定：帳戶分類 ----------

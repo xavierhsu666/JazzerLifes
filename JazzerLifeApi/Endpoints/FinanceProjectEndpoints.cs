@@ -20,8 +20,12 @@ namespace JazzerLifeApi.Endpoints
                     .OrderByDescending(p => p.CreatedAt)
                     .ToListAsync();
 
+                // 撈取條件要跟 FinanceProjectCashflowEndpoints 的 cashflow-matches / cashflow-monthly 完全一致
+                // (不預先濾掉 IsExcluded)，摘要列表的命中金額才會跟專案詳情頁的現金流分頁 100% 對得起來；
+                // IsExcluded 是「總覽/明細」等一般財務報表用的全域排除旗標，跟「這筆交易算不算進某個專案」是兩件事，
+                // 專案層面要不要排除，改用下面的 ProjectCashflowExclusions(excludedDetailIdsByProject) 判斷
                 var details = await db.Details
-                    .Where(d => d.UserId == userId && d.Activate == "1" && !d.IsExcluded)
+                    .Where(d => d.UserId == userId && d.Activate == "1")
                     .ToListAsync();
 
                 var projectIds = projects.Select(p => p.ProjectId).ToList();
@@ -58,11 +62,25 @@ namespace JazzerLifeApi.Endpoints
                     .GroupBy(e => e.ProjectId)
                     .ToDictionary(g => g.Key, g => g.Select(e => e.DetailId).ToHashSet());
 
+                // 修正 bug：摘要列表(此 API，也是「專案收支對比」圖表的資料來源)原本用 p.KeyWord
+                // (建立專案時填的舊版單一關鍵字欄位，未填就預設等於專案名稱)去比對交易明細，
+                // 但使用者實際在「專案詳情 > 現金流」分頁設定的規則是存在 ProjectCashflowRules 這張表，
+                // 兩邊關鍵字來源不一致，導致「現金流」分頁明明有命中很多筆，摘要圖表卻算出 0
+                // (例如專案名稱「信貸投資案」不會出現在任何一筆交易的描述/類別/帳戶文字裡，KeyWord 比對永遠槓龜)。
+                // 這裡改成跟 FinanceProjectCashflowEndpoints 的 cashflow-matches / cashflow-monthly 用同一份
+                // ProjectCashflowRules 關鍵字(批次查詢避免 N+1)，摘要列表才會跟現金流分頁的命中金額真正一致。
+                var cashflowRules = await db.ProjectCashflowRules
+                    .Where(r => projectIds.Contains(r.ProjectId) && r.Activate)
+                    .ToListAsync();
+                var keywordsByProject = cashflowRules
+                    .GroupBy(r => r.ProjectId)
+                    .ToDictionary(g => g.Key, g => g.Select(r => r.Keyword).ToList());
+
                 var result = projects.Select(p =>
                 {
                     var excludedDetailIds = excludedDetailIdsByProject.TryGetValue(p.ProjectId, out var ex) ? ex : new HashSet<int>();
-                    var keywords = (p.KeyWord ?? "").Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    var matched = keywords.Length == 0
+                    var keywords = keywordsByProject.TryGetValue(p.ProjectId, out var kw) ? kw : new List<string>();
+                    var matched = keywords.Count == 0
                         ? new List<Detail>()
                         : details.Where(d =>
                             !excludedDetailIds.Contains(d.DetailId) &&

@@ -30,7 +30,9 @@ namespace JazzerLifeApi.Endpoints
                         m.Cost,
                         m.OdometerReading,
                         Store = m.Store ?? "",
-                        Notes = m.Notes ?? ""
+                        Notes = m.Notes ?? "",
+                        m.CategoryId,
+                        CategoryName = m.Category != null ? m.Category.CategoryName : null
                     })
                     .ToListAsync();
 
@@ -71,6 +73,14 @@ namespace JazzerLifeApi.Endpoints
                 if (string.IsNullOrWhiteSpace(req.PartName) || req.MaintenanceDate == default)
                     return Results.BadRequest(new { message = "請填寫日期與零件" });
 
+                // 分類為選填；若有帶值，需先確認該分類確實屬於目前登入的使用者，避免跨帳號誤綁分類
+                if (req.CategoryId.HasValue)
+                {
+                    var ownsCategory = await db.PartCategories.AnyAsync(c => c.CategoryId == req.CategoryId && c.UserId == userId);
+                    if (!ownsCategory)
+                        return Results.BadRequest(new { message = "找不到分類或無權限" });
+                }
+
                 var record = new PartsMaintenance
                 {
                     VehicleId = vehicleId,
@@ -80,6 +90,7 @@ namespace JazzerLifeApi.Endpoints
                     OdometerReading = req.OdometerReading,
                     Store = req.Store,
                     Notes = req.Notes,
+                    CategoryId = req.CategoryId,
                     CreatedAt = DateTime.Now,
                     UpdatedAt = DateTime.Now
                 };
@@ -117,5 +128,5 @@ namespace JazzerLifeApi.Endpoints
         }
     }
 
-    public record MaintenanceRequest(string PartName, DateOnly MaintenanceDate, decimal Cost, decimal? OdometerReading, string? Store, string? Notes);
+    public record MaintenanceRequest(string PartName, DateOnly MaintenanceDate, decimal Cost, decimal? OdometerReading, string? Store, string? Notes, int? CategoryId);
 }

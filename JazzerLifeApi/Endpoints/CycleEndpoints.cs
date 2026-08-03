@@ -118,8 +118,15 @@ namespace JazzerLifeApi.Endpoints
                 if (!ownsVehicle)
                     return Results.Json(new { message = "找不到車輛或無權限" }, statusCode: 403);
 
+                // 只納入分類為「例行」「保養」的保養紀錄來推算週期：
+                // 像「維修」「改裝」這類非固定週期性的花費，混進來平均會讓建議週期失真。
+                // 需求指定的分類名稱需與「分類管理」裡建立的名稱完全一致（例如：例行、保養）。
+                var recommendCategoryNames = new[] { "例行", "保養" };
                 var records = await db.PartsMaintenances
-                    .Where(m => m.VehicleId == vehicleId && m.OdometerReading != null)
+                    .Where(m => m.VehicleId == vehicleId
+                        && m.OdometerReading != null
+                        && m.Category != null
+                        && recommendCategoryNames.Contains(m.Category.CategoryName))
                     .Select(m => new { m.PartName, m.Cost, m.OdometerReading, m.MaintenanceDate })
                     .ToListAsync();
 

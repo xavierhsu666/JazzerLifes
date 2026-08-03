@@ -176,25 +176,6 @@
             </div>
           </div>
 
-          <!-- 下月預估開支：帳單管理中下個月的固定支出 + 當年度平均月開銷 -->
-          <div class="stat-card">
-            <div class="stat-card-header">
-              <span class="stat-icon">🔮</span>
-              <h3 class="stat-title" id="statForecastTitle">下月預估開支</h3>
-            </div>
-            <div class="stat-card-body">
-              <div class="stat-value" id="statForecast">
-                <span class="stat-amount">NT$ 0</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 下月預估開支明細 -->
-        <div class="table-container" style="margin-top: 16px;">
-          <h3 class="pd-card-title" style="margin-bottom: 4px;">下月預估開支明細</h3>
-          <p class="pd-muted" id="forecastNote">預估值 =「帳單管理」中下個月會發生的固定帳單 ＋ 當年度的平均月開銷（不含固定帳單以外的一次性大額支出估計）。</p>
-          <div id="expenseForecastGrid" class="ag-theme-quartz-dark" style="height: 300px;"></div>
         </div>
 
       </section>
@@ -256,6 +237,42 @@
             </div>
           </div>
         </div>
+      </section>
+
+      <!-- 總覽 - 預估支出 -->
+      <section class="content-view hidden" id="view-expense-forecast" data-view="expense-forecast">
+        <div class="view-header">
+          <h2 class="view-title">預估支出</h2>
+        </div>
+
+        <!-- 圖表容器：今年已經過完的月份畫實際支出，本月（資料尚不完整）與之後月份畫預估支出 -->
+        <div class="chart-container">
+          <div id="expenseForecastChart"></div>
+        </div>
+
+        <!-- 統計卡片區 -->
+        <div class="stats-cards">
+          <!-- 下月預估開支：帳單管理中下個月的固定支出 + 近3個月變動支出中位數 -->
+          <div class="stat-card">
+            <div class="stat-card-header">
+              <span class="stat-icon">🔮</span>
+              <h3 class="stat-title" id="statForecastTitle">下月預估開支</h3>
+            </div>
+            <div class="stat-card-body">
+              <div class="stat-value" id="statForecast">
+                <span class="stat-amount">NT$ 0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 下月預估開支明細 -->
+        <div class="table-container" style="margin-top: 16px;">
+          <h3 class="pd-card-title" style="margin-bottom: 4px;">下月預估開支明細</h3>
+          <p class="pd-muted" id="forecastNote">預估值 =「帳單管理」中下個月會發生的固定帳單 ＋ 近 3 個月變動支出的中位數（已排除跟固定帳單名稱對得上的交易，避免重複計算；用中位數是為了不被單一異常大額支出的月份拉偏）。</p>
+          <div id="expenseForecastGrid" class="ag-theme-quartz-dark" style="height: 300px;"></div>
+        </div>
+
       </section>
 
       <!-- 明細 - 總收支明細 -->

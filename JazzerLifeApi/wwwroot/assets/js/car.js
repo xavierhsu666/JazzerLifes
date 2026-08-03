@@ -2,6 +2,7 @@
 var OilData, vehicalsTable;
 var oilUnitPrice = 0; // Oil Record 目前選定油品的單價（由 Google Sheet 抓取）
 var dashMaint = []; // Dashboard 目前載入的保養紀錄（供分類月份篩選用）
+var partCategories = []; // 目前使用者的保養分類清單（例行/保養/維修...），供新增保養表單下拉選單使用
 var editingCycleId = null; // 保養週期目前編輯中的 CycleID（null=新增模式）
 // 實際加油花費 = 加油量 × 每公升單價（FuelConsumption.FuelCost 欄位存的是「單價」）
 function fuelCostTotal(r) {
@@ -106,6 +107,18 @@ function load_to_page(ActiveSection) {
                     console.error("[car] MAINTAINTABLE -> loadMaintenance 失敗:", error, "uid=", uid, "vid=", vid);
                     loader_animate.load_end();
                     alert("讀取保養紀錄失敗，請洽系統管理員");
+                });
+            break;
+        case "CATEGORYTABLE":
+            loader_animate.load_start();
+            loadCategoryPage()
+                .then(function () {
+                    loader_animate.load_end();
+                })
+                .catch(function (error) {
+                    console.error("[car] CATEGORYTABLE -> loadCategoryPage 失敗:", error);
+                    loader_animate.load_end();
+                    alert("讀取保養分類失敗，請洽系統管理員");
                 });
             break;
     }
@@ -295,6 +308,22 @@ function oilPeriodKey(rec, dimension) {
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
 }
 
+// 根因：xAxis 用 categories 畫圖時，容器沒有明確寬度規劃，Highcharts 預設會把所有類別硬擠進
+// 目前可視寬度，累積月份一多（例如超過一年的紀錄）柱子會被壓到不到 1px、刻度文字也會被自動略過，
+// 視覺上像是「只顯示了十幾個單位」，但其實資料都還在，只是畫不出來。
+// 解法比照 finance.js 的 getMobileChartTweaks：改用 scrollablePlotArea 保留每個類別足夠寬度，
+// 超出可視範圍時橫向捲動查看，而不是硬擠進固定寬度。
+function carScrollableChartTweaks(categoryCount, pxPerCategory, minWidth) {
+    pxPerCategory = pxPerCategory || 50;
+    minWidth = minWidth || 320;
+    return {
+        scrollablePlotArea: {
+            minWidth: Math.max((categoryCount || 0) * pxPerCategory, minWidth),
+            scrollPositionX: 1, // 預設捲到最右邊（最新月份），趨勢圖優先看近期資料
+        },
+    };
+}
+
 function renderOilChart(records, dimension) {
     records = Array.isArray(records) ? records : [];
     dimension = dimension || "month";
@@ -324,7 +353,10 @@ function renderOilChart(records, dimension) {
     });
 
     Highcharts.chart("oilTrendChart", {
-        chart: { backgroundColor: "transparent", style: { fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" } },
+        chart: Object.assign(
+            { backgroundColor: "transparent", style: { fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" } },
+            carScrollableChartTweaks(keys.length),
+        ),
         title: { text: "油耗趨勢", style: { color: "#e6edf3" } },
         credits: { enabled: false },
         xAxis: {
@@ -700,7 +732,10 @@ function renderDashFuelTrend(fuel) {
         return Math.round(groups[k].dist);
     });
     Highcharts.chart("chart_area", {
-        chart: { backgroundColor: "transparent", style: { fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" } },
+        chart: Object.assign(
+            { backgroundColor: "transparent", style: { fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" } },
+            carScrollableChartTweaks(keys.length),
+        ),
         title: { text: null },
         credits: { enabled: false },
         xAxis: { categories: keys, labels: { style: { color: "#8b98a9" } }, lineColor: "#2c3a4d", tickColor: "#2c3a4d" },
@@ -1081,6 +1116,8 @@ function loadMaintenance(vid, uid) {
     return Promise.all([
         $.get("/api/vehicles/" + vid + "/maintenance"),
         $.get("/api/vehicles/" + vid + "/maintenance/part-names"),
+        $.get("/api/part-categories"),
+        $.get("/api/vehicles/" + vid + "/latest-odometer"),
     ]).then(function (res) {
         var maint = res[0].map(function (r) {
             return {
@@ -1091,19 +1128,131 @@ function loadMaintenance(vid, uid) {
                 OdometerReading: r.OdometerReading,
                 Store: r.Store,
                 Notes: r.Notes,
+                CategoryId: r.CategoryId,
+                CategoryName: r.CategoryName,
             };
         });
         var parts = res[1].map(function (p) {
             return { PartName: p };
         });
+        partCategories = res[2] || [];
+        var latestOdo = Number((res[3] && res[3].maxOdo) || 0);
 
         renderMaintKpis(maint);
         renderMaintGrid(maint);
         populateMaintPartList(parts);
-        if (!$("#maintForm_date").val()) {
-            $("#maintForm_date").val(new Date().toISOString().slice(0, 10));
-        }
+        // 分類下拉選單仍在此頁使用；分類「管理」(新增/刪除)已移到獨立的「保養分類」頁籤，
+        // 那裡的 categoryGrid 只在該頁籤被點開、DOM 可見時才初始化(ag-Grid 在隱藏容器裡量不到寬高會建錯)。
+        populateMaintCategorySelect(partCategories);
+        prefillMaintForm(latestOdo);
     });
+}
+
+// 里程欄位預設帶入目前已知最大里程(油耗+保養兩者取大者)，方便同一天/同次進廠多筆保養時不用重複輸入；
+// 使用者仍可自行覆寫成其他里程數。日期欄位維持原本「沒填才帶入今天」的邏輯。
+function prefillMaintForm(latestOdo) {
+    if (!$("#maintForm_date").val()) {
+        $("#maintForm_date").val(new Date().toISOString().slice(0, 10));
+    }
+    if (!$("#maintForm_odo").val() && latestOdo > 0) {
+        $("#maintForm_odo").val(latestOdo);
+    }
+}
+
+// ==================== 保養分類（獨立頁籤：分類管理，跨車輛共用） ====================
+
+function loadCategoryPage() {
+    return $.get("/api/part-categories").then(function (categories) {
+        partCategories = categories || [];
+        renderCategoryGrid(partCategories);
+    });
+}
+
+function renderCategoryGrid(categories) {
+    var rows = (categories || []).map(function (c) {
+        return { CategoryId: c.CategoryId, 分類名稱: c.CategoryName };
+    });
+    var cols = [
+        { field: "分類名稱", flex: 1, minWidth: 140 },
+        {
+            field: "操作",
+            width: 110,
+            sortable: false,
+            filter: false,
+            cellRenderer: function (p) {
+                return carActionButton("刪除", "btn-danger", function () {
+                    confirmDeleteCategory(p.data.CategoryId, p.data["分類名稱"]);
+                });
+            },
+        },
+    ];
+    carGrid("categoryGrid", cols, rows);
+}
+
+// 填入「新增保養」表單的分類下拉選單；重新整理時盡量保留使用者原本選取的值
+function populateMaintCategorySelect(categories) {
+    var sel = $("#maintForm_category");
+    if (!sel.length) {
+        return;
+    }
+    var current = sel.val();
+    sel.empty().append($("<option></option>").attr("value", "").text("（未分類）"));
+    (categories || []).forEach(function (c) {
+        sel.append($("<option></option>").attr("value", c.CategoryId).text(c.CategoryName));
+    });
+    if (current) {
+        sel.val(current);
+    }
+}
+
+function submitNewCategory() {
+    var name = ($("#categoryForm_name").val() || "").trim();
+    if (!name) {
+        alert("請輸入分類名稱");
+        return;
+    }
+    loader_animate.load_start();
+    $.ajax({
+        url: "/api/part-categories",
+        type: "POST",
+        contentType: "application/json",
+        data: JSON.stringify({ categoryName: name }),
+    })
+        .done(function () {
+            loader_animate.load_end();
+            $("#categoryForm_name").val("");
+            $("#categoryForm").addClass("d-none");
+            loadCategoryPage();
+        })
+        .fail(function (xhr) {
+            loader_animate.load_end();
+            if (xhr.status === 401) {
+                alert("請先登入");
+                window.location.assign("/signin.html");
+            } else {
+                alert((xhr.responseJSON && xhr.responseJSON.message) || "新增分類失敗，請洽系統管理員");
+            }
+        });
+}
+
+function confirmDeleteCategory(categoryId, name) {
+    if (!categoryId) {
+        return;
+    }
+    if (!confirm("確定刪除分類「" + (name || "") + "」？")) {
+        return;
+    }
+    loader_animate.load_start();
+    $.ajax({ url: "/api/part-categories/" + categoryId, type: "DELETE" })
+        .done(function () {
+            loader_animate.load_end();
+            loadCategoryPage();
+        })
+        .fail(function (xhr) {
+            loader_animate.load_end();
+            // 使用中禁止刪除時，後端會回傳 400 + 明確訊息，直接顯示給使用者
+            alert((xhr.responseJSON && xhr.responseJSON.message) || "刪除失敗，請洽系統管理員");
+        });
 }
 
 function renderMaintKpis(maint) {
@@ -1124,6 +1273,7 @@ function renderMaintGrid(maint) {
             MaintenanceID: r.MaintenanceID,
             日期: r.MaintenanceDate || "",
             零件: r.PartName || "",
+            分類: r.CategoryName || "未分類",
             里程: Number(r.OdometerReading || 0),
             花費: Number(r.Cost || 0),
             店家: r.Store || "",
@@ -1133,6 +1283,7 @@ function renderMaintGrid(maint) {
     var cols = [
         { field: "日期", width: 120, sort: "desc" },
         { field: "零件", flex: 1, minWidth: 120 },
+        { field: "分類", width: 110 },
         { field: "里程", width: 120, valueFormatter: function (p) { return Number(p.value || 0).toLocaleString(); } },
         { field: "花費", width: 120, valueFormatter: function (p) { return "$" + Number(p.value || 0).toLocaleString(); } },
         { field: "店家", width: 140 },
@@ -1171,6 +1322,8 @@ function submitMaintenance() {
     }
     var date = $("#maintForm_date").val();
     var part = ($("#maintForm_part").val() || "").trim();
+    var categoryIdRaw = $("#maintForm_category").val();
+    var categoryId = categoryIdRaw ? Number(categoryIdRaw) : null;
     var odo = Number($("#maintForm_odo").val() || 0);
     var cost = Number($("#maintForm_cost").val() || 0);
     var store = ($("#maintForm_store").val() || "").trim();
@@ -1192,12 +1345,14 @@ function submitMaintenance() {
             odometerReading: odo,
             store: store,
             notes: note,
+            categoryId: categoryId,
         }),
     })
         .done(function () {
             loader_animate.load_end();
             alert("已新增保養紀錄");
             $("#maintForm_part, #maintForm_odo, #maintForm_cost, #maintForm_store, #maintForm_note").val("");
+            $("#maintForm_category").val("");
             loadMaintenance(vid, null);
         })
         .fail(function (xhr) {
@@ -1362,12 +1517,6 @@ function sel_Vehicles() {
                 }
                 reject(xhr);
             });
-    });
-}
-
-function handleSignOut() {
-    $.post("/api/auth/logout").always(function () {
-        window.location.reload();
     });
 }
 

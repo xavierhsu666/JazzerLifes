@@ -74,8 +74,8 @@
       <div class="app-nav-item" data-view="maintaintable" onclick="switchSection(this)">
         <i class="ti ti-tool" aria-hidden="true"></i><span>保養紀錄</span>
       </div>
-      <div class="app-nav-item" id="navSign" onclick="handleSignOut()">
-        <i class="ti ti-logout" aria-hidden="true"></i><span>LogOut</span>
+      <div class="app-nav-item" data-view="categorytable" onclick="switchSection(this)">
+        <i class="ti ti-tags" aria-hidden="true"></i><span>保養分類</span>
       </div>
     </nav>
 
@@ -402,6 +402,13 @@
                 <datalist id="maintPartList"></datalist>
               </div>
               <div class="oil-field">
+                <label for="maintForm_category">分類</label>
+                <!-- 本專案用 Bootstrap 4，沒有 .form-select 樣式，select 用 .form-control 才能跟其他欄位外觀一致 -->
+                <select id="maintForm_category" class="form-control">
+                  <option value="">（未分類）</option>
+                </select>
+              </div>
+              <div class="oil-field">
                 <label for="maintForm_odo">里程 (km)</label>
                 <input type="number" id="maintForm_odo" class="form-control" />
               </div>
@@ -429,6 +436,34 @@
           <div id="maintGrid" class="ag-theme-quartz-dark car-grid"></div>
         </div>
       </section>
+
+      <!-- 保養分類管理：分類為使用者層級共用（跨車輛），供保養紀錄頁新增保養表單的「分類」下拉選單使用 -->
+      <section id="categorytable" class="d-none">
+        <h2>保養分類</h2>
+
+        <div class="oil-toolbar">
+          <button type="button" class="btn btn-primary" onclick="show_toggleEle('categoryForm')">+ 新增分類</button>
+        </div>
+
+        <div id="categoryForm" class="d-none">
+          <div class="oil-form-card">
+            <div class="oil-form-grid">
+              <div class="oil-field">
+                <label for="categoryForm_name">分類名稱</label>
+                <input type="text" id="categoryForm_name" class="form-control" placeholder="例如：例行、保養、維修" />
+              </div>
+            </div>
+            <div class="car-toolbar-center">
+              <button type="button" class="btn btn-primary" onclick="submitNewCategory()">送出</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="dash-panel">
+          <h2 class="h2">現有分類</h2>
+          <div id="categoryGrid" class="ag-theme-quartz-dark car-grid"></div>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -448,6 +483,9 @@
     </div>
     <div class="app-bottom-nav-item" data-view="maintaintable" onclick="switchSection(this)">
       <i class="ti ti-tool" aria-hidden="true"></i>保養
+    </div>
+    <div class="app-bottom-nav-item" data-view="categorytable" onclick="switchSection(this)">
+      <i class="ti ti-tags" aria-hidden="true"></i>分類
     </div>
   </div>
 

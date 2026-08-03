@@ -66,6 +66,7 @@ app.MapVehicleEndpoints();
 app.MapMaintenanceEndpoints();
 app.MapFuelEndpoints();
 app.MapCycleEndpoints();
+app.MapPartCategoryEndpoints();
 app.MapFinanceOverviewEndpoints();
 app.MapFinanceUploadEndpoints();
 app.MapFinanceDetailEndpoints();

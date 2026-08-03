@@ -27,10 +27,11 @@
 | 功能 | 說明 |
 |---|---|
 | Dashboard | 綜合儀表板，顯示總里程、本月油耗花費、平均油耗、每公里成本、保養提醒 |
-| 油耗紀錄 | 記錄加油量、里程、單價，自動計算行駛距離與油耗效率，趨勢圖表（週/月/年）|
+| 油耗紀錄 | 記錄加油量、里程、單價，自動計算行駛距離與油耗效率，趨勢圖表（週/月/年，多筆資料改用 Highcharts `scrollablePlotArea` 橫向捲動，避免月份一多被壓縮到看不清楚）|
 | 車輛管理 | 新增/編輯/刪除車輛基本資料 |
-| 保養週期設定 | 依里程或時間週期設定保養提醒，並依歷史紀錄自動推算建議週期 |
-| 保養紀錄 | 記錄保養項目、花費、里程、店家，KPI 統計 |
+| 保養週期設定 | 依里程或時間週期設定保養提醒；建議週期只納入分類為「例行」「保養」的歷史紀錄推算，避免維修等非固定週期花費拉低平均 |
+| 保養紀錄 | 記錄保養項目、花費、里程、店家、分類，KPI 統計；里程欄位自動帶入目前已知最大里程 |
+| 保養分類管理 | 獨立頁籤維護保養分類（例如：例行、保養、維修），供保養紀錄綁定使用，跨車輛共用 |
 
 響應式設計：桌面顯示側邊欄導航，手機（≤767px）自動切換為底部固定導覽列。
 
@@ -223,6 +224,7 @@ JazzerLifeApi/
 │   ├── FuelEndpoints.cs             # 油耗紀錄
 │   ├── CycleEndpoints.cs            # 保養週期設定
 │   ├── MaintenanceEndpoints.cs      # 保養紀錄
+│   ├── PartCategoryEndpoints.cs     # 保養分類 CRUD
 │   ├── DashboardEndpoints.cs        # 車輛 Dashboard 綜合查詢
 │   ├── FinanceOverviewEndpoints.cs  # 財務總覽
 │   ├── FinanceDetailEndpoints.cs    # 收支明細 + 分類分析
@@ -290,8 +292,11 @@ scripts/
 | GET/POST | `/api/vehicles/{id}/fuel` | 油耗紀錄查詢/新增 |
 | GET | `/api/dashboard/{id}` | 車輛 Dashboard 綜合資料 |
 | GET/POST/PUT/DELETE | `/api/vehicles/{id}/cycles` | 保養週期 CRUD |
-| GET | `/api/vehicles/{id}/cycles/recommend` | 依歷史紀錄推薦保養週期 |
-| GET/POST/DELETE | `/api/vehicles/{id}/maintenance` | 保養紀錄查詢/新增/刪除 |
+| GET | `/api/vehicles/{id}/cycles/recommend` | 依歷史紀錄推薦保養週期（只納入分類為「例行」「保養」的紀錄） |
+| GET/POST/DELETE | `/api/vehicles/{id}/maintenance` | 保養紀錄查詢/新增/刪除（可綁定分類 `CategoryId`） |
+| GET | `/api/vehicles/{id}/maintenance/part-names` | 查詢曾用過的零件名稱（表單自動完成用） |
+| GET | `/api/vehicles/{id}/latest-odometer` | 查詢目前已知最大里程（油耗+保養紀錄取大者，供表單預填/Dashboard 使用） |
+| GET/POST/PUT/DELETE | `/api/part-categories` | 保養分類 CRUD（使用者層級共用，跨車輛；刪除時若分類已被保養紀錄使用中會擋下） |
 
 ### 財務管理
 
