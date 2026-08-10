@@ -129,6 +129,18 @@ namespace JazzerLifeApi.Endpoints
                                 ?.AccountBalance ?? 0);
                     }
 
+                    // 專案可勾選「把現金流一併計入上月實際資產」（例如房租收入型專案，成果反映在現金流
+                    // 而不是綁定帳戶的餘額上）。累計範圍只到「資產流最新綁定月份」的月底，跟資產快照的
+                    // 時間點對齊；晚於該月份的交易不計入，才不會把未來的錢算進過去的快照
+                    decimal cashflowIncludedInActualAsset = 0;
+                    if (p.IncludeCashflowInActualAsset)
+                    {
+                        cashflowIncludedInActualAsset = latestBindingMonth != null
+                            ? matched.Where(d => MonthKey(d.TransactionDate).CompareTo(latestBindingMonth) <= 0).Sum(d => d.Amount)
+                            : net;
+                        prevMonthActualAsset += cashflowIncludedInActualAsset;
+                    }
+
                     var ratio = prevMonthExpectedAsset != 0 ? (double)(prevMonthActualAsset / prevMonthExpectedAsset) : 0;
 
                     return new
@@ -145,6 +157,9 @@ namespace JazzerLifeApi.Endpoints
                         Net = net,
                         PrevMonthExpectedAsset = prevMonthExpectedAsset,
                         PrevMonthActualAsset = prevMonthActualAsset,
+                        p.IncludeCashflowInActualAsset,
+                        // 實際被加進「上月實際資產」的現金流金額，供前端顯示來源說明用（未勾選時為 0）
+                        CashflowInActualAsset = cashflowIncludedInActualAsset,
                         FullfillRatio = ratio
                     };
                 }).ToList();
@@ -175,6 +190,7 @@ namespace JazzerLifeApi.Endpoints
                     BillBudget = req.Budget,
                     Status = req.Status ?? "進行中",
                     TagPrefix = tagPrefix,
+                    IncludeCashflowInActualAsset = req.IncludeCashflowInActualAsset ?? false,
                     Activate = "1",
                     CreatedAt = DateTime.Now,
                     UpdatedAt = DateTime.Now,
@@ -202,6 +218,7 @@ namespace JazzerLifeApi.Endpoints
                 project.Status = req.Status ?? project.Status;
                 if (req.StartDate.HasValue) project.BillStartTime = req.StartDate;
                 if (req.EndDate.HasValue) project.BillEndTime = req.EndDate;
+                if (req.IncludeCashflowInActualAsset.HasValue) project.IncludeCashflowInActualAsset = req.IncludeCashflowInActualAsset.Value;
                 project.UpdatedAt = DateTime.Now;
 
                 await db.SaveChangesAsync();
@@ -232,7 +249,18 @@ namespace JazzerLifeApi.Endpoints
             var idStr = user.FindFirstValue(ClaimTypes.NameIdentifier);
             return int.TryParse(idStr, out int id) ? id : null;
         }
+
+        // 交易日期轉成 "yyyy-MM"，好跟資產綁定用的 SnapshotMonth 字串直接比大小
+        private static string MonthKey(DateOnly date) => date.Year + "-" + date.Month.ToString("D2");
     }
 
-    public record ProjectCreateRequest(string Name, string? Keyword, decimal Budget, string? Status, DateTime? StartDate, DateTime? EndDate);
+    public record ProjectCreateRequest(
+        string Name,
+        string? Keyword,
+        decimal Budget,
+        string? Status,
+        DateTime? StartDate,
+        DateTime? EndDate,
+        // 選填：null 代表沿用專案目前的設定（新增專案時等同 false）
+        bool? IncludeCashflowInActualAsset);
 }

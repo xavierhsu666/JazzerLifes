@@ -193,12 +193,16 @@ class FinanceApp {
                     valueFormatter: (params) => "NT$" + Math.round(Number(params.value || 0)).toLocaleString(),
                 },
                 {
-                    // 改為「上個月實際資產」：取該專案「資產流」子系統實際有綁定資料的最新月份帳戶餘額合計，不再是關鍵字命中交易的淨收支
+                    // 改為「上個月實際資產」：取該專案「資產流」子系統實際有綁定資料的最新月份帳戶餘額合計，不再是關鍵字命中交易的淨收支。
+                    // 專案若勾了「將現金流計入上月實際資產」，數字會多加現金流累計淨額，標註出來才不會看不出兩個專案的口徑不同
                     field: "PrevMonthActualAsset",
                     headerName: "上月實際資產",
                     flex: 1.2,
                     minWidth: 130,
-                    valueFormatter: (params) => "NT$" + Math.round(Number(params.value || 0)).toLocaleString(),
+                    valueFormatter: (params) => {
+                        const base = "NT$" + Math.round(Number(params.value || 0)).toLocaleString();
+                        return params.data?.IncludeCashflowInActualAsset ? base + "（含現金流）" : base;
+                    },
                     cellStyle: (params) => this.getCellStyle(params.value),
                 },
                 {
@@ -669,13 +673,13 @@ class FinanceApp {
         $("#pdModeExpected").on("click", () => this.setProjectDetailMode("expected"));
         $("#pdMonth").on("change", (e) => {
             this.state.projectDetailMonth = e.target.value;
-            this.renderAssetChecklist();
+            this.renderAssetPanelSummary();
             this.refreshAssetGrid();
             this.refreshCashflowGrid();
             this.updateProjectDetailSummary();
         });
         $("#pdAddRule").on("click", () => this.addCashflowRuleCard());
-        $("#pdApplyAssetsAllMonths").on("click", () => this.applyAssetBindingsToAllMonths());
+        $("#pdOpenAssetModal").on("click", () => this.openAssetBindingModal());
         $("#pdClearAssetsAllMonths").on("click", () => this.clearAssetBindingsAllMonths());
         $("#pdCashflowAllMonths").on("click", () => {
             this.state.pdCashflowAllMonths = !this.state.pdCashflowAllMonths;
@@ -696,7 +700,7 @@ class FinanceApp {
             this.refreshCashflowGrid();
         });
         $("#pdGenerateDraft").on("click", () => this.generateExpectedDraftFromRates());
-        ["pdName", "pdStatus", "pdBudget", "pdStartDate", "pdEndDate", "pdTagPrefix"].forEach((id) => {
+        ["pdName", "pdStatus", "pdBudget", "pdStartDate", "pdEndDate", "pdTagPrefix", "pdIncludeCashflow"].forEach((id) => {
             $("#" + id).on("input change", () => this.setProjectDetailDirty(true));
         });
 
@@ -1470,6 +1474,16 @@ class FinanceApp {
 
     // 圖表座標軸用的精簡單位：四捨五入到整數 K，破百萬才切到 M（最多留 1 位小數），
     // 避免出現像 "12.345K" 這種又長又有小數點的軸標籤
+    // 把使用者輸入的文字（專案名稱、銀行/帳戶名稱、分類等）安全地放進 innerHTML 用
+    escapeHtml(str) {
+        return String(str == null ? "" : str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+    }
+
     formatAxisCurrency(value) {
         const num = Math.round(Number(value) || 0);
         const abs = Math.abs(num);
@@ -1923,21 +1937,43 @@ class FinanceApp {
         };
     }
 
-    showModal(title, content, onConfirm) {
+    /**
+     * @param {object} [options]
+     *   options.confirmText  自訂確認鈕文字（預設維持原本的「確認」）
+     *   options.wide         寬版 modal（表格類內容用）
+     *   options.extraActions [{ label, onClick }]，額外插在確認鈕左邊的次要按鈕。
+     *                        資產綁定需要「套用到所有月份」「套用至版本月份」兩個動作，
+     *                        原本的單一確認鈕不夠用，才加這個選項；不傳時行為與改動前完全相同。
+     */
+    showModal(title, content, onConfirm, options) {
+        const opts = options || {};
         this.elements.modalTitle.textContent = title;
         this.elements.modalBody.innerHTML = content;
         this.elements.modalOverlay.classList.remove("hidden");
+        document.getElementById("modal")?.classList.toggle("modal-wide", !!opts.wide);
 
         const newConfirmBtn = this.elements.modalConfirm.cloneNode(true);
         this.elements.modalConfirm.parentNode.replaceChild(newConfirmBtn, this.elements.modalConfirm);
         this.elements.modalConfirm = newConfirmBtn;
-
+        this.elements.modalConfirm.textContent = opts.confirmText || "確認";
         this.elements.modalConfirm.addEventListener("click", onConfirm);
+
+        // 上一次開啟時加的額外按鈕要先清掉，否則會一直累積
+        document.querySelectorAll(".modal-footer .modal-extra-action").forEach((el) => el.remove());
+        (opts.extraActions || []).forEach((action) => {
+            const btn = document.createElement("button");
+            btn.className = "btn-secondary modal-extra-action";
+            btn.textContent = action.label;
+            btn.addEventListener("click", action.onClick);
+            this.elements.modalConfirm.parentNode.insertBefore(btn, this.elements.modalConfirm);
+        });
     }
 
     closeModal() {
         this.elements.modalOverlay.classList.add("hidden");
         this.elements.modalBody.innerHTML = "";
+        document.getElementById("modal")?.classList.remove("modal-wide");
+        document.querySelectorAll(".modal-footer .modal-extra-action").forEach((el) => el.remove());
     }
 
     // ==================== 自訂下拉選單 ====================
@@ -2084,6 +2120,7 @@ class FinanceApp {
             status: project.Status || "進行中",
             startDate: project.BillStartTime ? String(project.BillStartTime).slice(0, 10) : "",
             endDate: project.BillEndTime ? String(project.BillEndTime).slice(0, 10) : "",
+            includeCashflowInActualAsset: !!project.IncludeCashflowInActualAsset,
         };
 
         this.state.projectDetailMonth = "";
@@ -2108,6 +2145,10 @@ class FinanceApp {
         this._setValue("pdBudget", Number(draft.budget || 0));
         this._setValue("pdStartDate", draft.startDate);
         this._setValue("pdEndDate", draft.endDate);
+        const includeCashflowEl = document.getElementById("pdIncludeCashflow");
+        if (includeCashflowEl) {
+            includeCashflowEl.checked = !!draft.includeCashflowInActualAsset;
+        }
 
         // 資產流月份下拉，改抓資產流趨勢 API 拿到的月份清單
         $.get(`/api/finance/projects/${draft.projectId}/assets/trend`).then(function (trend) {
@@ -2122,7 +2163,7 @@ class FinanceApp {
             }
             self.refreshCustomDropdown("pdMonth");
 
-            self.renderAssetChecklist();
+            self.renderAssetPanelSummary();
             self.refreshAssetGrid();
             self.renderCashflowRuleCards();
             self.refreshCashflowGrid();
@@ -2175,63 +2216,154 @@ class FinanceApp {
 
     // ---------- 資產流：追蹤淨資產實際變化 ----------
 
-    renderAssetChecklist() {
+    // 資產綁定改成彈窗操作（原本是一排 checkbox 直接鋪在頁面上，而且每勾一下就立刻存檔，
+    // 使用者無法先看完整份清單再決定，也沒辦法反悔）。彈窗裡的勾選只存在記憶體，
+    // 按下「套用至版本月份」或「套用到所有月份」才會送出。
+    renderAssetPanelSummary() {
         const draft = this.state.projectDetailDraft;
         const month = this.state.projectDetailMonth;
-        const container = document.getElementById("pdAssetChecklist");
-        if (!draft || !container || !month) {
-            if (container) container.innerHTML = '<label>請先選擇月份</label>';
+        this._setText("pdAssetMonthChip", `版本月份：${month || "-"}`);
+        if (!draft || !month) {
+            this._setText("pdAssetBoundChip", "已綁定帳戶：0");
+            this._setText("pdAssetBoundAmountChip", "綁定餘額合計：NT$ 0");
             return;
         }
 
+        var self = this;
         $.get(`/api/finance/projects/${draft.projectId}/assets`, { month: month }).then((accounts) => {
-            if (!accounts.length) {
-                container.innerHTML = '<label>此月份沒有帳戶資料</label>';
-                return;
-            }
-            container.innerHTML = accounts
-                .map((a) => {
-                    const key = a.OrganizationName + "｜" + a.AccountName;
-                    const checked = a.IsBound ? "checked" : "";
-                    const bal = this.formatCurrency(Number(a.AccountBalance || 0));
-                    return `<label><input type="checkbox" data-org="${encodeURIComponent(a.OrganizationName)}" data-acc="${encodeURIComponent(a.AccountName)}" ${checked} /> <span>${key}（${bal}）</span></label>`;
-                })
-                .join("");
-
-            var self = this;
-            container.querySelectorAll("input[type=checkbox]").forEach((checkbox) => {
-                checkbox.addEventListener("change", () => {
-                    self.saveCurrentAssetSelection();
-                });
-            });
+            const bound = (accounts || []).filter((a) => a.IsBound);
+            const sum = bound.reduce((s, a) => s + Number(a.AccountBalance || 0), 0);
+            self._setText("pdAssetBoundChip", `已綁定帳戶：${bound.length}`);
+            self._setText("pdAssetBoundAmountChip", `綁定餘額合計：${self.formatCurrency(sum)}`);
         });
     }
 
-    saveCurrentAssetSelection() {
+    openAssetBindingModal() {
+        const draft = this.state.projectDetailDraft;
+        const month = this.state.projectDetailMonth;
+        if (!draft) {
+            return;
+        }
+        if (!month) {
+            this.showModal("尚無可綁定的月份", "<p>此專案目前沒有可綁定的版本月份，請先上傳帳戶餘額資料。</p>", () => this.closeModal());
+            return;
+        }
+
+        var self = this;
+        $.get(`/api/finance/projects/${draft.projectId}/assets`, { month: month }).then((accounts) => {
+            const rows = accounts || [];
+            const body = rows.length
+                ? rows
+                      .map((a, i) => {
+                          const category = a.Category || "";
+                          // 「上月實際資產」只加總分類為「資產」的帳戶，其他分類（含未分類）綁了也不會計入，
+                          // 在這裡就標示出來，避免使用者綁了一堆卻發現達成率沒動
+                          const categoryCell = category
+                              ? (category === "資產"
+                                  ? `<span class="asset-cat is-asset">${self.escapeHtml(category)}</span>`
+                                  : `<span class="asset-cat">${self.escapeHtml(category)}</span>`)
+                              : '<span class="asset-cat is-none">未分類</span>';
+                          return `
+                            <tr>
+                              <td class="asset-check-col">
+                                <input type="checkbox" class="asset-bind-check" data-idx="${i}"
+                                       data-org="${encodeURIComponent(a.OrganizationName)}"
+                                       data-acc="${encodeURIComponent(a.AccountName)}"
+                                       ${a.IsBound ? "checked" : ""} />
+                              </td>
+                              <td>${categoryCell}</td>
+                              <td>${self.escapeHtml(a.OrganizationName)}｜${self.escapeHtml(a.AccountName)}</td>
+                              <td class="asset-amount-col">${self.formatCurrency(Number(a.AccountBalance || 0))}</td>
+                            </tr>`;
+                      })
+                      .join("")
+                : '<tr><td colspan="4" style="text-align:center; color:#b0b0b0;">此月份沒有帳戶資料</td></tr>';
+
+            const content = `
+                <p class="pd-muted" style="margin-bottom:10px;">
+                  版本月份 <strong>${month}</strong>　·　只有分類為「資產」的帳戶會計入專案列表的上月實際資產
+                </p>
+                <div class="asset-bind-table-wrap">
+                  <table class="asset-bind-table">
+                    <thead>
+                      <tr>
+                        <th class="asset-check-col"><input type="checkbox" id="assetBindCheckAll" /></th>
+                        <th>資產分類</th>
+                        <th>資產</th>
+                        <th class="asset-amount-col">對應餘額</th>
+                      </tr>
+                    </thead>
+                    <tbody>${body}</tbody>
+                  </table>
+                </div>
+                <p class="pd-muted" style="margin-top:10px;">
+                  「套用至版本月份」只更新 ${month}；「套用到所有月份」會把目前勾選套用到每一個月份（各月僅套用該月實際存在的帳戶）。
+                </p>`;
+
+            self.showModal("綁定資產帳戶", content, () => self.applyAssetBindings("month"), {
+                wide: true,
+                confirmText: `套用至版本月份（${month}）`,
+                extraActions: [{ label: "套用到所有月份", onClick: () => self.applyAssetBindings("all") }],
+            });
+
+            const checkAll = document.getElementById("assetBindCheckAll");
+            if (checkAll) {
+                checkAll.addEventListener("change", () => {
+                    document.querySelectorAll(".asset-bind-check").forEach((cb) => {
+                        cb.checked = checkAll.checked;
+                    });
+                });
+            }
+        });
+    }
+
+    /** 讀取彈窗目前的勾選；scope = "month" 只更新版本月份，"all" 套用到所有月份 */
+    applyAssetBindings(scope) {
         const draft = this.state.projectDetailDraft;
         const month = this.state.projectDetailMonth;
         if (!draft || !month) {
             return;
         }
-        const container = document.getElementById("pdAssetChecklist");
+
         const accounts = [];
-        container.querySelectorAll("input[type=checkbox]:checked").forEach((cb) => {
+        document.querySelectorAll(".asset-bind-check:checked").forEach((cb) => {
             accounts.push({
                 OrganizationName: decodeURIComponent(cb.dataset.org),
                 AccountName: decodeURIComponent(cb.dataset.acc),
             });
         });
 
+        if (scope === "all" && !accounts.length) {
+            alert("目前沒有勾選任何帳戶，無法套用到所有月份；若要清空綁定請改用「清除所有月份綁定」。");
+            return;
+        }
+
         var self = this;
-        $.ajax({
-            url: `/api/finance/projects/${draft.projectId}/assets`,
-            type: "PUT",
-            contentType: "application/json",
-            data: JSON.stringify({ month: month, accounts: accounts }),
-        }).then(function () {
-            self.refreshAssetGrid();
-            self.updateProjectDetailSummary();
-        });
+        const request = scope === "all"
+            ? $.ajax({
+                  url: `/api/finance/projects/${draft.projectId}/assets/apply-all-months`,
+                  type: "POST",
+                  contentType: "application/json",
+                  data: JSON.stringify({ accounts: accounts }),
+              })
+            : $.ajax({
+                  url: `/api/finance/projects/${draft.projectId}/assets`,
+                  type: "PUT",
+                  contentType: "application/json",
+                  data: JSON.stringify({ month: month, accounts: accounts }),
+              });
+
+        request
+            .done(function (res) {
+                self.closeModal();
+                self.renderAssetPanelSummary();
+                self.refreshAssetGrid();
+                self.updateProjectDetailSummary();
+                self.showModal("已套用", `<p>${(res && res.message) || `已更新 ${month} 的資產綁定`}</p>`, () => self.closeModal());
+            })
+            .fail(function (xhr) {
+                alert("套用失敗：" + (xhr.responseJSON?.message || "請洽系統管理員"));
+            });
     }
 
     refreshAssetGrid() {
@@ -2259,38 +2391,6 @@ class FinanceApp {
         });
     }
 
-    applyAssetBindingsToAllMonths() {
-        const draft = this.state.projectDetailDraft;
-        const month = this.state.projectDetailMonth;
-        if (!draft || !month) {
-            return;
-        }
-        const container = document.getElementById("pdAssetChecklist");
-        const accounts = [];
-        container.querySelectorAll("input[type=checkbox]:checked").forEach((cb) => {
-            accounts.push({
-                OrganizationName: decodeURIComponent(cb.dataset.org),
-                AccountName: decodeURIComponent(cb.dataset.acc),
-            });
-        });
-        if (!accounts.length) {
-            alert("目前月份沒有勾選任何帳戶，無法套用");
-            return;
-        }
-
-        var self = this;
-        $.ajax({
-            url: `/api/finance/projects/${draft.projectId}/assets/apply-all-months`,
-            type: "POST",
-            contentType: "application/json",
-            data: JSON.stringify({ accounts: accounts }),
-        }).then(function (res) {
-            alert(res.message || "已套用");
-            self.renderAssetChecklist();
-            self.refreshAssetGrid();
-        });
-    }
-
     clearAssetBindingsAllMonths() {
         const draft = this.state.projectDetailDraft;
         if (!draft) {
@@ -2301,8 +2401,9 @@ class FinanceApp {
         }
         var self = this;
         $.ajax({ url: `/api/finance/projects/${draft.projectId}/assets`, type: "DELETE" }).then(function () {
-            self.renderAssetChecklist();
+            self.renderAssetPanelSummary();
             self.refreshAssetGrid();
+            self.updateProjectDetailSummary();
         });
     }
 
@@ -3261,7 +3362,117 @@ class FinanceApp {
         $("#project_list").empty();
         $("#projectComparisonChart").empty();
         this.initGrids_by_viewId(sorted, "project-management", "project_list");
-        this.initCharts_byViewId(sorted, "project-management", "projectComparisonChart");
+        this.renderProjectComparisonCharts(sorted, "projectComparisonChart");
+    }
+
+    /**
+     * 專案收支對比：每個專案各自一張小圖、各自一條 y 軸。
+     *
+     * 原本是所有專案共用一張圖、一條 y 軸的群組柱狀圖，但專案之間的金額級距差很多
+     * （例如信貸投資案是千萬級、康樂是萬級），小額專案的柱子會被壓成貼著 x 軸的細線，
+     * 完全看不出收支關係。改成小多圖後每張圖自己縮放，代價是不同專案之間不能直接
+     * 用柱子高度比大小，所以每張圖都會標出自己的最大金額當作尺度提示。
+     */
+    renderProjectComparisonCharts(list, containerId) {
+        const container = document.getElementById(containerId);
+        if (!container) {
+            return;
+        }
+        const rows = list || [];
+        container.innerHTML = "";
+
+        if (!rows.length) {
+            container.innerHTML = '<p class="pd-muted" style="padding:16px;">目前沒有專案資料</p>';
+            return;
+        }
+
+        const self = this;
+        // 舊的單張圖表實例要先銷毀，否則重新整理時會殘留在 state.charts 裡
+        Object.keys(this.state.charts)
+            .filter((key) => key === containerId || key.startsWith(containerId + "-"))
+            .forEach((key) => {
+                try {
+                    this.state.charts[key]?.destroy?.();
+                } catch (e) {
+                    /* 已被 innerHTML 清掉的圖表 destroy 會拋錯，忽略即可 */
+                }
+                delete this.state.charts[key];
+            });
+
+        const grid = document.createElement("div");
+        grid.className = "project-chart-grid";
+        container.appendChild(grid);
+
+        rows.forEach((row, index) => {
+            const income = Math.round(Math.abs(Number(row.Income || 0)));
+            const expense = Math.round(Math.abs(Number(row.Expense || 0)));
+            const net = Math.round(Number(row.Net || 0));
+            const scale = Math.max(income, expense, Math.abs(net));
+
+            const cell = document.createElement("div");
+            cell.className = "project-chart-cell";
+            const chartId = `${containerId}-${index}`;
+            cell.innerHTML = `
+                <div class="project-chart-head">
+                    <span class="project-chart-name" title="${self.escapeHtml(String(row.BillProjectId || ""))}">${self.escapeHtml(String(row.BillProjectId || "(未命名)"))}</span>
+                    <span class="project-chart-scale">最大 ${self.formatAxisCurrency(scale)}</span>
+                </div>
+                <div id="${chartId}" class="project-chart-body"></div>`;
+            grid.appendChild(cell);
+
+            self.state.charts[chartId] = Highcharts.chart(chartId, {
+                chart: {
+                    type: "column",
+                    backgroundColor: "transparent",
+                    height: 200,
+                    spacing: [8, 8, 8, 8],
+                    style: { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' },
+                },
+                title: { text: null },
+                credits: { enabled: false },
+                legend: { enabled: false },
+                exporting: { enabled: false },
+                xAxis: {
+                    categories: ["收入", "支出", "淨收入"],
+                    gridLineColor: "#424242",
+                    lineColor: "#757575",
+                    tickColor: "#757575",
+                    labels: { style: { color: "#b0b0b0", fontSize: "11px" } },
+                },
+                yAxis: {
+                    // 每張小圖各自縮放，這是本次改版的重點
+                    title: { text: null },
+                    gridLineColor: "#424242",
+                    labels: {
+                        style: { color: "#b0b0b0", fontSize: "10px" },
+                        formatter: function () {
+                            return self.formatAxisCurrency(this.value);
+                        },
+                    },
+                },
+                tooltip: {
+                    backgroundColor: "#2a2a2a",
+                    borderColor: "#757575",
+                    style: { color: "#ffffff" },
+                    outside: true,
+                    followTouchMove: false,
+                    formatter: function () {
+                        return "<b>" + row.BillProjectId + "</b><br/>" + this.x + "：" + self.formatAxisCurrency(this.y);
+                    },
+                },
+                plotOptions: {
+                    column: { borderWidth: 0, groupPadding: 0.08, pointPadding: 0.06 },
+                },
+                series: [
+                    {
+                        name: "金額",
+                        colorByPoint: true,
+                        colors: ["#4caf50", "#ff5722", "#00bcd4"],
+                        data: [income, expense, net],
+                    },
+                ],
+            });
+        });
     }
 
     getProjectCreateForm() {
@@ -3352,6 +3563,7 @@ class FinanceApp {
         const budget = Number(document.getElementById("pdBudget")?.value || 0);
         const startDate = document.getElementById("pdStartDate")?.value || "";
         const endDate = document.getElementById("pdEndDate")?.value || "";
+        const includeCashflowInActualAsset = !!document.getElementById("pdIncludeCashflow")?.checked;
 
         if (!name) {
             this.showModal("欄位不足", "<p>請填入專案名稱。</p>", () => this.closeModal());
@@ -3363,9 +3575,10 @@ class FinanceApp {
             url: `/api/finance/projects/${draft.projectId}`,
             type: "PUT",
             contentType: "application/json",
-            data: JSON.stringify({ name, keyword: draft.keyword, budget, status, startDate: startDate || null, endDate: endDate || null }),
+            data: JSON.stringify({ name, keyword: draft.keyword, budget, status, startDate: startDate || null, endDate: endDate || null, includeCashflowInActualAsset }),
         })
             .done(function () {
+                draft.includeCashflowInActualAsset = includeCashflowInActualAsset;
                 self.setProjectDetailDirty(false);
                 self.showModal("儲存完成", `<p>「${name}」的專案設定已更新。</p>`, () => self.closeModal());
             })

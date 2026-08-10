@@ -30,11 +30,21 @@ namespace JazzerLifeApi.Endpoints
                     .ToListAsync();
                 var boundKeys = bound.Select(b => b.OrganizationName + "｜" + b.AccountName).ToHashSet();
 
+                // 帳戶分類（設定 > 帳戶分類）供綁定 modal 的表格顯示與分組用；
+                // 摘要列表的「上月實際資產」也是依這個分類決定哪些帳戶要計入（只算「資產」），
+                // 所以在勾選當下就看得到分類，才不會綁了一堆負債帳戶卻不知道它們不列入計算
+                var accountCategories = await db.AccountCategories
+                    .Where(c => c.UserId == userId)
+                    .ToListAsync();
+                var categoryMap = accountCategories
+                    .ToDictionary(c => (c.OrganizationName, c.AccountName), c => c.Category);
+
                 var result = accountsThisMonth.Select(a => new
                 {
                     a.OrganizationName,
                     a.AccountName,
                     a.AccountBalance,
+                    Category = categoryMap.TryGetValue((a.OrganizationName, a.AccountName), out var cat) ? cat : null,
                     IsBound = boundKeys.Contains(a.OrganizationName + "｜" + a.AccountName)
                 });
 

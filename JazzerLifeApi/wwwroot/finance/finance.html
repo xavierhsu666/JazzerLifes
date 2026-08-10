@@ -496,6 +496,15 @@
               <input id="pdTagPrefix" placeholder="#專案名稱" />
             </label>
           </div>
+          <!-- 摘要列表的「上月實際資產」預設只算資產流綁定帳戶中分類為「資產」的餘額；
+               房租收入型等專案的成果反映在現金流而非帳戶餘額，可勾選此項一併計入 -->
+          <label class="pd-check">
+            <input type="checkbox" id="pdIncludeCashflow" />
+            <span>將現金流計入專案列表的「上月實際資產」</span>
+          </label>
+          <p class="pd-muted" style="margin-top: 6px;">
+            勾選後，會把現金流命中明細中「交易日期 ≦ 資產流最新綁定月份」的累計淨額，加進摘要列表的上月實際資產與達成率。
+          </p>
         </div>
 
         <div class="pd-card">
@@ -513,12 +522,16 @@
 
           <!-- 資產流 -->
           <div id="pdAssetPanel">
-            <p class="pd-muted">指派資產（勾選帳戶，按月綁定，儲存後生效）</p>
+            <p class="pd-muted">指派資產（於彈窗勾選帳戶，可套用至目前版本月份或所有月份）</p>
             <div class="pd-toolbar" style="margin-bottom: 10px;">
-              <button class="btn-secondary" id="pdApplyAssetsAllMonths">套用勾選至所有月份</button>
+              <button class="btn-primary" id="pdOpenAssetModal">綁定資產帳戶</button>
               <button class="btn-secondary" id="pdClearAssetsAllMonths">清除所有月份綁定</button>
             </div>
-            <div id="pdAssetChecklist" class="pd-checklist"></div>
+            <div class="pd-stats">
+              <span class="pd-chip" id="pdAssetMonthChip">版本月份：-</span>
+              <span class="pd-chip" id="pdAssetBoundChip">已綁定帳戶：0</span>
+              <span class="pd-chip" id="pdAssetBoundAmountChip">綁定餘額合計：NT$ 0</span>
+            </div>
             <div id="pdAssetGrid" class="ag-theme-quartz-dark pd-grid"></div>
           </div>
 

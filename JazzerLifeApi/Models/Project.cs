@@ -31,6 +31,10 @@ public partial class Project
 
     public string? TagPrefix { get; set; }
 
+    // 摘要列表的「上月實際資產」是否要把現金流命中明細的累計淨額一併加進去。
+    // 預設 false：只算資產流綁定帳戶中分類為「資產」的餘額（原本的行為）
+    public bool IncludeCashflowInActualAsset { get; set; }
+
     public virtual ICollection<ProjectAssetBinding> ProjectAssetBindings { get; set; } = new List<ProjectAssetBinding>();
 
     public virtual ICollection<ProjectCashflowRule> ProjectCashflowRules { get; set; } = new List<ProjectCashflowRule>();

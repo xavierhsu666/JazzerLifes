@@ -116,6 +116,8 @@
 >
 > 三支皆內含 `IF NOT EXISTS` 防呆、可重複執行，且依序有相依關係（第 2、3 支皆假設第 1 支已先執行過）。結構備份分別存於 `db_backup/trading_schema_backup_2026-07-30.md`、`db_backup/trading_schema_add_ctrader_records_backup_2026-07-30.md`、`db_backup/trading_schema_remove_position_history_import_2026-07-30.md`、`db_backup/trading_schema_add_exit_quality_backup_2026-07-30.md`。**測試機與正式機目前皆尚未執行**，部署前務必先於 SSMS 手動跑過這三支腳本，否則 `/api/trading/*` 系列 API 會全部失敗。另需 `dotnet restore` 還原新增的 ClosedXML 套件（供解析 cTrader `.xlsx` 匯出檔）。
 
+> **FIN schema 異動（2026-08-10，專案現金流計入實際資產）部署方式：** 需在部署前於 SSMS 對 JazzerLife 資料庫執行 `scripts/sql/finance_project_include_cashflow_2026-08-10.sql`（`FIN.Projects` 新增 `IncludeCashflowInActualAsset BIT NOT NULL DEFAULT 0`）。內含 `IF NOT EXISTS` 防呆、可重複執行，預設值 0 維持既有專案行為不變。未執行時 `/api/finance/projects` 會因 EF 查不到該欄位而失敗（專案列表整頁無法載入）。結構備份與同批次前端改動說明存於 `db_backup/finance_project_include_cashflow_backup_2026-08-10.md`。
+
 > **FIN schema 異動（2026-07-31，帳單管理 BillID + 專案現金流排除）部署方式：** 需在部署前於 SSMS 對 JazzerLife 資料庫依序手動執行：
 > 1. `scripts/sql/finance_bill_add_id_2026-07-31.sql`（`FIN.Bill` 原本 `HasNoKey()`，新增 `BillID INT IDENTITY(1,1)` 並設為主鍵，既有資料列由 SQL Server 自動依序補號，才能支援單一帳單的編輯/刪除）
 > 2. `scripts/sql/finance_project_cashflow_exclusion_2026-07-31.sql`（新增 `FIN.ProjectCashflowExclusion` 表，記錄「這筆明細在這個專案被手動排除」，供專案現金流命中明細的「專案層面排除」功能使用，不影響 `Detail.IsExcluded` 或其他專案）
@@ -510,6 +512,7 @@ git config --global --add safe.directory <資料夾路徑>
 | — | **Finance 模組（2026-07-31）：分類分析表格 UI、總覽資產分頁卡片精簡、專案摘要列表達成率重新定義、帳單管理新增編輯/刪除、專案現金流「專案層面排除」** | 開發完成，**2 支新 SQL 腳本尚未於任一環境執行，待測試機驗證** |
 | — | **car 模組（2026-08-03）：保養分類管理（新增/綁定/建議週期篩選）、油耗趨勢圖表 scrollablePlotArea 修正、移除 car 頁 LogOut** | 開發完成，**無 SQL 待執行**，可直接部署 |
 | — | **Trading 模組（2026-08-10）：手機版日期區間篩選改版** — 導覽列改為區間摘要按鈕 + 展開式面板（快捷區間膠囊、起訖日期、清除/套用），修正原本擠成兩列蓋住內容的問題 | 開發完成，**無 SQL 待執行**，可直接部署 |
+| — | **Finance 模組（2026-08-10）：專案管理編輯重新設計** — 資產綁定改彈窗（勾選/資產分類/資產/餘額表格 + 套用至版本月份／所有月份）、基礎資訊新增「現金流計入上月實際資產」勾選、收支對比圖表改為每專案一張小圖各自 y 軸 | 開發完成，**1 支 SQL 尚未執行**，待測試機驗證 |
 | — | **全模組（2026-08-10）：手機版回首頁按鈕** — finance／macro／rent／trading 頂端導覽列新增僅手機顯示的 🏠 按鈕，修正手機上無法回 index.html 的問題（car 模組結構不同，尚未處理） | 開發完成，**無 SQL 待執行**，可直接部署 |
 | 五 | 上線前安全檢查清單 | 尚未開始 |
 
