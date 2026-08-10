@@ -78,12 +78,89 @@ var TradingApp = {
     /** ==================== 上方日期區間篩選（套用於總覽與交易明細） ==================== */
     bindTopFilter: function () {
         var self = this;
-        $("#btnApplyDateFilter").on("click", function () {
-            self.state.dateFrom = $("#dateFromInput").val() || null;
-            self.state.dateTo = $("#dateToInput").val() || null;
-            var current = $(".content-view:not(.hidden)").data("view");
-            self.switchFeature(current || "overview");
+
+        // 手機端：點按鈕展開/收合日期面板（桌機面板一直是展開的一列，按鈕以 CSS 隱藏）
+        $("#btnToggleDateFilter").on("click", function (e) {
+            e.stopPropagation();
+            var open = $("#dateFilterPanel").toggleClass("open").hasClass("open");
+            $(this).attr("aria-expanded", open ? "true" : "false");
         });
+
+        // 點面板以外的地方收合，避免面板一直蓋住內容
+        $(document).on("click", function (e) {
+            var $panel = $("#dateFilterPanel");
+            if (!$panel.hasClass("open")) return;
+            if ($panel.is(e.target) || $panel.has(e.target).length > 0) return;
+            self.closeDateFilterPanel();
+        });
+
+        // 快捷區間：直接填好起訖日期並立即套用
+        $(".date-preset").on("click", function () {
+            var range = $(this).data("range");
+            var today = new Date();
+            var from = null;
+            if (range === "month") from = new Date(today.getFullYear(), today.getMonth(), 1);
+            else if (range === "year") from = new Date(today.getFullYear(), 0, 1);
+            else if (range !== "all") from = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (Number(range) - 1));
+
+            $("#dateFromInput").val(from ? self.toDateInputValue(from) : "");
+            $("#dateToInput").val(range === "all" ? "" : self.toDateInputValue(today));
+
+            $(".date-preset").removeClass("active");
+            $(this).addClass("active");
+            self.applyDateFilter();
+        });
+
+        $("#btnClearDateFilter").on("click", function () {
+            $("#dateFromInput").val("");
+            $("#dateToInput").val("");
+            $(".date-preset").removeClass("active");
+            self.applyDateFilter();
+        });
+
+        // 手動改日期時，快捷鈕的選取狀態就不再成立
+        $("#dateFromInput, #dateToInput").on("change", function () {
+            $(".date-preset").removeClass("active");
+        });
+
+        $("#btnApplyDateFilter").on("click", function () {
+            self.applyDateFilter();
+        });
+
+        self.renderDateFilterSummary();
+    },
+
+    applyDateFilter: function () {
+        this.state.dateFrom = $("#dateFromInput").val() || null;
+        this.state.dateTo = $("#dateToInput").val() || null;
+        this.renderDateFilterSummary();
+        this.closeDateFilterPanel();
+        var current = $(".content-view:not(.hidden)").data("view");
+        this.switchFeature(current || "overview");
+    },
+
+    closeDateFilterPanel: function () {
+        $("#dateFilterPanel").removeClass("open");
+        $("#btnToggleDateFilter").attr("aria-expanded", "false");
+    },
+
+    /** 手機端導覽列按鈕上顯示目前套用的區間（桌機看不到這顆按鈕） */
+    renderDateFilterSummary: function () {
+        var from = this.state.dateFrom;
+        var to = this.state.dateTo;
+        var shortDate = function (v) { return v ? v.slice(5).replace("-", "/") : ""; };
+        var text = "全部區間";
+        if (from && to) text = shortDate(from) + "～" + shortDate(to);
+        else if (from) text = shortDate(from) + " 起";
+        else if (to) text = "至 " + shortDate(to);
+        $("#dateFilterSummary").text(text);
+        $("#btnToggleDateFilter").toggleClass("is-active", !!(from || to));
+    },
+
+    /** Date → yyyy-MM-dd（用本地時間，不能用 toISOString，會被 UTC 位移差一天） */
+    toDateInputValue: function (d) {
+        var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+        return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
     },
 
     dateRangeParams: function () {

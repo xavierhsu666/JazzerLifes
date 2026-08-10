@@ -36,10 +36,10 @@ namespace JazzerLifeApi.Endpoints
                         .Where(b => roomIds.Contains(b.RoomId))
                         .ToListAsync();
 
-                    // 公共電費試算：草稿列（該房間本月尚未建立帳單）會拿試算建議值當預設值，
-                    // 已存在的帳單一律顯示自己儲存時的 PublicElectricityFee（使用者可能已手動調整過，不能被試算值蓋掉）
-                    var publicElectricityEstimate = await RentMasterMeterEndpoints.ComputeEstimateAsync(db, propertyId, billMonth);
-
+                    // 公共電費不再於此自動帶入試算值。原本草稿列會塞一個「本月各房用電當 0」算出來的
+                    // 試算結果，但公共電費本來就要等本月讀數填完才算得準，那個預設值幾乎必定是錯的，
+                    // 使用者卻無從分辨它是暫時值。改成一律回 0 並由前端標示「待試算」，
+                    // 實際數字要由使用者在電費計算頁按「帶入公共電費」才會填入。
                     var result = rooms.Select(r =>
                     {
                         var existing = allBills.FirstOrDefault(b => b.RoomId == r.RoomId && b.BillMonth == billMonth);
@@ -75,10 +75,6 @@ namespace JazzerLifeApi.Endpoints
                             .Select(b => (decimal?)b.CurrentReading)
                             .FirstOrDefault() ?? 0m;
 
-                        // 每間房用自己的電價換算出來的公共電費可能不同，要用 RoomId 對應到該房間自己的試算結果
-                        var publicElectricityDefault = publicElectricityEstimate.RoomBreakdown
-                            .FirstOrDefault(x => x.RoomId == r.RoomId)?.PublicElectricityFee ?? 0m;
-
                         return new
                         {
                             BillId = (int?)null,
@@ -91,9 +87,9 @@ namespace JazzerLifeApi.Endpoints
                             RentSnapshot = r.MonthlyRent,
                             RateSnapshot = r.ElectricityRate,
                             AdjustmentSnapshot = r.AdjustmentAmount,
-                            PublicElectricityFee = publicElectricityDefault,
+                            PublicElectricityFee = 0m,
                             ElectricityFee = 0m,
-                            TotalAmount = r.MonthlyRent + r.AdjustmentAmount + publicElectricityDefault,
+                            TotalAmount = r.MonthlyRent + r.AdjustmentAmount,
                             IsPaid = false,
                             PaidDate = (DateOnly?)null,
                             Note = (string?)null,
@@ -153,16 +149,17 @@ namespace JazzerLifeApi.Endpoints
                         var existing = existingBills.FirstOrDefault(b => b.RoomId == row.RoomId);
                         var usageUnits = row.CurrentReading - prevReading;
 
-                        // 公共電費（PublicElectricityFee）不是快照欄位，每次儲存都直接採用使用者畫面上的值，
-                        // 不管是新建立或既有的帳單都一樣，跟房租/電價/調整金額的「鎖定」邏輯不同
-                        var publicElectricityFee = row.PublicElectricityFee;
-
+                        // 公共電費自 2026-08-10 起改為快照欄位，行為比照房租/電價/調整金額：
+                        // 建立當下寫入，之後一般儲存不會再動它。請求中的 PublicElectricityFee 為 null
+                        // 代表「維持資料庫既有值」，前端只有在使用者明確重新試算或手動修改該格時才會帶值。
+                        // 這樣按「儲存本月帳單」就不會把先前試算或手動調整過的金額無聲蓋掉。
                         if (existing == null)
                         {
                             var rentSnapshot = room.MonthlyRent;
                             var rateSnapshot = room.ElectricityRate;
                             var adjustmentSnapshot = room.AdjustmentAmount;
                             var electricityFee = usageUnits * rateSnapshot;
+                            var publicElectricityFee = row.PublicElectricityFee ?? 0m;
 
                             db.RentRoomBills.Add(new RentRoomBill
                             {
@@ -190,7 +187,9 @@ namespace JazzerLifeApi.Endpoints
                             existing.PrevReading = prevReading;
                             existing.CurrentReading = row.CurrentReading;
                             existing.UsageUnits = usageUnits;
-                            existing.PublicElectricityFee = publicElectricityFee;
+                            // null = 維持既有的公共電費快照，只有明確帶值時才覆寫
+                            if (row.PublicElectricityFee.HasValue)
+                                existing.PublicElectricityFee = row.PublicElectricityFee.Value;
                             existing.ElectricityFee = usageUnits * existing.RateSnapshot;
                             existing.TotalAmount = existing.ElectricityFee + existing.RentSnapshot + existing.AdjustmentSnapshot + existing.PublicElectricityFee;
                             existing.Note = string.IsNullOrWhiteSpace(row.Note) ? null : row.Note.Trim();
@@ -263,6 +262,7 @@ namespace JazzerLifeApi.Endpoints
         }
     }
 
-    public record RentBillRowRequest(int RoomId, decimal CurrentReading, decimal PublicElectricityFee, decimal? PrevReadingOverride, string? Note);
+    // PublicElectricityFee 為 null 代表「維持資料庫既有值」（公共電費是快照欄位，見上方儲存邏輯說明）
+    public record RentBillRowRequest(int RoomId, decimal CurrentReading, decimal? PublicElectricityFee, decimal? PrevReadingOverride, string? Note);
     public record RentBillSaveRequest(int PropertyId, string BillMonth, List<RentBillRowRequest> Rows);
 }

@@ -334,6 +334,11 @@ button {
     gap: var(--spacing-lg);
 }
 
+/* 回首頁按鈕：桌機隱藏（側邊欄本來就有可點的 JazzerLife LOGO），只在手機版顯示 */
+.navbar-home {
+    display: none;
+}
+
 /* 視窗切換選單 */
 .tab-list {
     display: flex;
@@ -1450,6 +1455,26 @@ button {
 
     .sidebar-toggle {
         display: flex;
+    }
+
+    /* 手機版唯一的回首頁入口（側邊欄與其開關都在畫面外，懸浮選單鈕又被底部導覽列取代） */
+    .navbar-home {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        width: 38px;
+        height: 38px;
+        border-radius: var(--radius-md);
+        border: 1px solid var(--color-gray-700);
+        background-color: rgba(255, 255, 255, 0.04);
+        font-size: 1rem;
+        line-height: 1;
+        text-decoration: none;
+    }
+
+    .navbar-home:active {
+        background-color: rgba(255, 255, 255, 0.1);
     }
 
     /* 主內容區不留邊距 */

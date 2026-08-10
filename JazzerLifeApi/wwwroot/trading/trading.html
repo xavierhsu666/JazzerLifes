@@ -75,13 +75,45 @@
   <div class="main-wrapper">
     <header class="top-navbar" id="topNavbar">
       <nav class="navbar-content">
+        <!-- 手機版專用的回首頁入口，理由同 rent.html：側邊欄（含 LOGO）在手機上被移到畫面外，
+             開關按鈕也在側邊欄裡，手機上原本無法回到 index.html -->
+        <a class="navbar-home" href="/index.html" aria-label="回首頁" title="回首頁">🏠</a>
         <h2 class="view-title" style="font-size:1.1rem;">交易紀錄</h2>
         <div class="date-filter-row">
-          <label class="date-filter-label">區間</label>
-          <input type="date" id="dateFromInput" class="date-input" />
-          <span style="color:var(--color-text-secondary);">～</span>
-          <input type="date" id="dateToInput" class="date-input" />
-          <button class="btn-secondary" id="btnApplyDateFilter">套用</button>
+          <label class="date-filter-label" for="dateFromInput">區間</label>
+          <!-- 手機端：導覽列只放一顆顯示目前區間的按鈕，點擊才展開下方面板，
+               避免兩個日期輸入框 + 套用鈕把 60px 高的導覽列擠成兩列而蓋住內容 -->
+          <button type="button" class="date-filter-toggle" id="btnToggleDateFilter" aria-expanded="false"
+                  aria-controls="dateFilterPanel">
+            <span class="date-filter-toggle-icon">📅</span>
+            <span class="date-filter-toggle-text" id="dateFilterSummary">全部區間</span>
+            <span class="date-filter-toggle-caret" aria-hidden="true"></span>
+          </button>
+          <div class="date-filter-panel" id="dateFilterPanel">
+            <!-- 快捷區間：手機上用手指選日期很麻煩，常用區間直接一鍵套用 -->
+            <div class="date-filter-presets">
+              <button type="button" class="date-preset" data-range="7">近7天</button>
+              <button type="button" class="date-preset" data-range="30">近30天</button>
+              <button type="button" class="date-preset" data-range="month">本月</button>
+              <button type="button" class="date-preset" data-range="year">今年</button>
+              <button type="button" class="date-preset" data-range="all">全部</button>
+            </div>
+            <div class="date-filter-inputs">
+              <label class="date-field">
+                <span class="date-field-label">起</span>
+                <input type="date" id="dateFromInput" class="date-input" aria-label="起始日期" />
+              </label>
+              <span class="date-filter-sep">～</span>
+              <label class="date-field">
+                <span class="date-field-label">迄</span>
+                <input type="date" id="dateToInput" class="date-input" aria-label="結束日期" />
+              </label>
+            </div>
+            <div class="date-filter-actions">
+              <button class="btn-secondary" id="btnClearDateFilter">清除</button>
+              <button class="btn-primary" id="btnApplyDateFilter">套用</button>
+            </div>
+          </div>
         </div>
       </nav>
     </header>

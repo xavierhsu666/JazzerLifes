@@ -568,7 +568,7 @@ public partial class JazzerLifeContext : DbContext
 
             entity.ToTable("MasterMeterReading", "RENT");
 
-            entity.HasIndex(e => new { e.PropertyId, e.BillMonth }, "UQ_RentMasterMeterReading_PropertyMonth").IsUnique();
+            entity.HasIndex(e => new { e.PropertyId, e.EndMonth }, "UQ_RentMasterMeterReading_PropertyEndMonth").IsUnique();
 
             entity.Property(e => e.MasterBillId).HasColumnName("MasterBillID");
             entity.Property(e => e.PropertyId).HasColumnName("PropertyID");

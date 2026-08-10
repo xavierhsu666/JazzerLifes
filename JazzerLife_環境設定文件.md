@@ -1,7 +1,8 @@
 # JazzerLife 環境設定文件
 
-**最後更新：** 2026 年 7 月 31 日（v10：Finance 模組多項調整 — 分類分析/總覽卡片 UI 精簡、專案摘要列表達成率改以「預期資產 vs 實際資產」計算、帳單管理新增編輯/刪除（`FIN.Bill` 補上 `BillID` 主鍵）、專案現金流命中明細新增「專案層面排除」機制，含 2 支新 SQL 腳本部署方式）
+**最後更新：** 2026 年 8 月 10 日（v11：Rent 模組公共電費邏輯重整 — 主表電費紀錄改存明確起訖月區間、公共電費改為快照欄位、套用入口收斂到「電費計算」頁並新增操作流程列，含 2 支新 SQL 腳本部署方式與 RENT 腳本執行狀態更正；另含 Trading 模組手機版日期區間篩選改版）
 **歷史版本：**
+- v10（2026 年 7 月 31 日）：Finance 模組多項調整 — 分類分析/總覽卡片 UI 精簡、專案摘要列表達成率改以「預期資產 vs 實際資產」計算、帳單管理新增編輯/刪除（`FIN.Bill` 補上 `BillID` 主鍵）、專案現金流命中明細新增「專案層面排除」機制，含 2 支新 SQL 腳本部署方式
 - v9（2026 年 7 月 30 日）：新增交易日誌模組 — cTrader Records + TradingView 訂單匯入分析，含出場方式分類/隱含成本/滑價分析，含 TRADING schema 部署方式
 - v8（2026 年 7 月 29 日）：租屋處電費管理模組複製圖片穩定性修正 — 整表/單一房間/電費明細三種複製皆改為離屏靜態表格擷取，並移除與 html2canvas 衝突的 sticky 房間欄位
 - v7（2026 年 7 月 29 日）：租屋處電費管理模組手機版 UI 優化 — 表格加大、操作按鈕排版調整（原同時嘗試的 sticky 房間欄位固定，已於 v8 移除）
@@ -98,7 +99,15 @@
 > 1. `scripts/sql/rent_schema.sql`（建立 RENT schema，共 3 張表：`Property`／`Room`／`RoomBill`）
 > 2. `scripts/sql/rent_schema_add_public_electricity_2026-07-27.sql`（`RoomBill` 新增 `PublicElectricityFee` 欄位；新增 `MasterMeterReading` 表，供公共電費試算用）
 >
-> 兩支皆內含 `IF NOT EXISTS` 防呆、可重複執行，且第 2 支依賴第 1 支已先執行過。結構備份分別存於 `db_backup/rent_schema_backup_2026-07-27.md`、`db_backup/rent_schema_add_public_electricity_backup_2026-07-27.md`。**測試機與正式機目前皆尚未執行**，部署前務必先於 SSMS 手動跑過這兩支腳本，否則 `/api/rent/*` 系列 API 會全部失敗。
+> 兩支皆內含 `IF NOT EXISTS` 防呆、可重複執行，且第 2 支依賴第 1 支已先執行過。結構備份分別存於 `db_backup/rent_schema_backup_2026-07-27.md`、`db_backup/rent_schema_add_public_electricity_backup_2026-07-27.md`。
+>
+> **【2026-08-10 更正】這兩支腳本其實都已經執行過了**（實際連線查詢確認 `RENT.MasterMeterReading` 與 `RoomBill.PublicElectricityFee` 皆存在，`RENT.Property`／`Room`／`RoomBill` 亦有實際使用中的資料）。原本記載的「測試機與正式機目前皆尚未執行」為過期資訊。注意測試機的連線字串指向的就是正式機的 `JazzerLife` 資料庫，兩邊看到的是同一份資料。
+
+> **RENT 主表期間改版（2026-08-10，公共電費邏輯重整）部署方式：** 需在部署前於 SSMS 對 JazzerLife 資料庫依序手動執行：
+> 1. `scripts/sql/rent_schema_add_master_period_2026-08-10.sql`（`RENT.MasterMeterReading` 新增 `StartMonth`／`EndMonth`，唯一索引改掛在 `(PropertyID, EndMonth)`，並加上 `EndMonth >= StartMonth` 檢查條件）
+> 2. `scripts/sql/rent_fix_initial_readings_2026-08-10.sql`（修正「期初建檔列」被當成用電量的資料；正式資料庫的 2026-05 四列合計 110,148 度、電費 10~19 萬元，會讓公共電費試算失效）
+>
+> 第 1 支內含 `IF NOT EXISTS` 防呆、可重複執行；第 2 支的判定條件為 `PrevReading = 0 AND CurrentReading > 0 AND UsageUnits > 0`，同樣可重複執行（第二次執行影響 0 筆），腳本開頭附有先查詢受影響資料列的 SELECT，建議先單獨執行確認清單無誤再往下。**第 2 支會異動正式資料，執行前請先看過該清單。** 結構備份與設計說明存於 `db_backup/rent_schema_add_master_period_backup_2026-08-10.md`。未執行第 1 支時，`/api/rent/master-meter` 與 `/api/rent/public-electricity-estimate` 會因查不到 `StartMonth`／`EndMonth` 而失敗。
 
 > **TRADING schema（交易日誌模組，新增）部署方式：** 需在部署前於 SSMS 對 JazzerLife 資料庫依序手動執行：
 > 1. `scripts/sql/trading_schema.sql`（建立 TRADING schema，共 2 張表：`StrategyTag`／`Trade`）
@@ -493,12 +502,15 @@ git config --global --add safe.directory <資料夾路徑>
 | — | Finance 模組：移除投資組合、未來規劃 | 待前端 HTML/JS 清理收尾 |
 | — | **測試機環境建置（KAZUO）** | **完成** |
 | — | Macro 模組：DB Schema、資料同步管線（FRED/台灣官方/Yahoo Finance）、API、示警、前端（含分類分組、圖表美化） | 測試機驗證完成，正式區未部署 |
-| — | **Rent 模組（新增）：房間房租/電費計算、公共電費雙月抄表試算、複製圖片** | 開發完成，**SQL 腳本尚未於任一環境執行，待測試機驗證** |
+| — | **Rent 模組（新增）：房間房租/電費計算、公共電費雙月抄表試算、複製圖片** | 已上線使用中（2026-08-10 更正：SQL 腳本其實早已執行，資料庫已有實際帳單資料） |
+| — | **Rent 模組（2026-08-10）：公共電費邏輯重整** — 主表改存明確起訖月區間、公共電費改為快照、套用入口收斂到「電費計算」頁、新增操作流程列 | 開發完成，**2 支 SQL 尚未執行（含 1 支正式資料修正），待測試機驗證** |
 | — | Rent 模組：手機版 UI 優化（表格字級加大、操作按鈕排版） | 開發完成，待測試機驗證 |
 | — | Rent 模組：複製圖片穩定性修正（整表/單一房間/電費明細改離屏靜態表格擷取；移除與 html2canvas 衝突的 sticky 房間欄位） | 開發完成，待測試機驗證 |
 | — | **Trading 模組（新增）：交易日誌，cTrader Records + TradingView 訂單匯入，績效分析/出場方式分類/隱含成本/滑價分析** | 開發完成，**SQL 腳本尚未於任一環境執行，待測試機驗證** |
 | — | **Finance 模組（2026-07-31）：分類分析表格 UI、總覽資產分頁卡片精簡、專案摘要列表達成率重新定義、帳單管理新增編輯/刪除、專案現金流「專案層面排除」** | 開發完成，**2 支新 SQL 腳本尚未於任一環境執行，待測試機驗證** |
 | — | **car 模組（2026-08-03）：保養分類管理（新增/綁定/建議週期篩選）、油耗趨勢圖表 scrollablePlotArea 修正、移除 car 頁 LogOut** | 開發完成，**無 SQL 待執行**，可直接部署 |
+| — | **Trading 模組（2026-08-10）：手機版日期區間篩選改版** — 導覽列改為區間摘要按鈕 + 展開式面板（快捷區間膠囊、起訖日期、清除/套用），修正原本擠成兩列蓋住內容的問題 | 開發完成，**無 SQL 待執行**，可直接部署 |
+| — | **全模組（2026-08-10）：手機版回首頁按鈕** — finance／macro／rent／trading 頂端導覽列新增僅手機顯示的 🏠 按鈕，修正手機上無法回 index.html 的問題（car 模組結構不同，尚未處理） | 開發完成，**無 SQL 待執行**，可直接部署 |
 | 五 | 上線前安全檢查清單 | 尚未開始 |
 
 ### 尚待處理事項
@@ -513,7 +525,12 @@ git config --global --add safe.directory <資料夾路徑>
 - [ ] 正式區部署總經模組：依 `總經模組_正式區部署備註.md` 執行（含新增指標 SQL、`fetch_yahoo.py` 複製與連線驗證、IIS App Pool 權限檢查）。
 - [ ] 台灣官方資料：`TW_CORE_CPI_YOY`、`TW_EXPORT_ORDERS_YOY` 待人工查詢穩定資料源；`TW_BUSINESS_SIGNAL` 已知來源但為 ZIP 格式，`fetch_tw_gov.py` 需擴充解壓縮支援才能啟用。
 - [ ] Yahoo Finance（`fetch_yahoo.py`）為非官方 API，需持續觀察正式機的長期連線穩定性，若頻繁失敗需評估替代來源。
-- [ ] Rent 模組部署前需先於測試機、正式機 SSMS 依序執行 `scripts/sql/rent_schema.sql` 與 `scripts/sql/rent_schema_add_public_electricity_2026-07-27.sql`。
+- [x] ~~Rent 模組部署前需先於測試機、正式機 SSMS 依序執行 `scripts/sql/rent_schema.sql` 與 `scripts/sql/rent_schema_add_public_electricity_2026-07-27.sql`。~~（2026-08-10 確認兩支皆已執行完畢）
+- [ ] Rent 模組 2026-08-10 異動部署前需先於 SSMS 依序執行 `scripts/sql/rent_schema_add_master_period_2026-08-10.sql` 與 `scripts/sql/rent_fix_initial_readings_2026-08-10.sql`（第 2 支會異動正式資料，先跑腳本內的 SELECT 確認受影響列）。
+- [ ] Rent 模組公共電費維持「度數平均分攤 × 各房約定電價」，主表的總電費金額不進入計算，因此分攤總額與台電實際帳單金額會有落差（各房電價與實際均價的差額由房東吸收或多收）。此為已知取捨，若日後希望兩者對齊，需改為「金額分攤」（公共電費總額 = 主表總金額 − Σ各房自身電費）。
+- [ ] Rent 模組公共電費的分攤分母採「目前啟用中的房間數」，期間內有房間退租／新入住時會與實際居住狀況有落差（已退租房間的用電仍會被扣除，只是不分攤公共部分）。
+- [ ] **Service Worker 靜態檔快取（2026-08-10 新增，部署後若畫面沒更新請先看這裡）**：`wwwroot/service-worker.js` 採「網路優先、失敗才回快取」策略快取同網域的 HTML/CSS/JS。手機（尤其是加到主畫面的 PWA）可能出現「HTML 是新的、CSS/JS 是舊的」的混合狀態，症狀是版面錯亂、新功能沒作用。`CACHE_VERSION` 目前仍是 `v1`，從未調整過；改成 `v2` 可在 activate 階段清掉舊快取，強迫拿到新版靜態檔。**含前端改動的部署建議一併調整此版本號。**
+- [ ] car 模組手機版沒有回 index.html 的入口（`car-layout.css` 直接 `.app-sidebar { display: none }`，且無頂端導覽列可放按鈕）。其餘四個模組已於 2026-08-10 以 `.navbar-home` 補上，car 需另行決定放在底部導覽列或車輛下拉選單旁。
 - [ ] Rent 模組「公共電費」試算需要使用者持續在「公共電費」頁籤登記主表（母表）讀數（期間需與電費月相同），否則會以 0 帶入；待實際使用幾個月後再評估試算準確度。
 - [ ] Rent 模組目前只有前端單一物件視角（無物件切換 UI），資料庫已支援多物件，未來如需擴充多個出租地址只需前端調整。
 - [ ] Trading 模組部署前需先於測試機、正式機 SSMS 依序執行 `scripts/sql/trading_schema.sql`、`trading_schema_add_ctrader_records_2026-07-30.sql`、`trading_schema_add_exit_quality_2026-07-30.sql`，並執行 `dotnet restore` 還原 ClosedXML 套件。

@@ -75,6 +75,10 @@
   <div class="main-wrapper">
     <header class="top-navbar" id="topNavbar">
       <nav class="navbar-content">
+        <!-- 手機版專用的回首頁入口：側邊欄（含 JazzerLife LOGO）在手機上被移到畫面外，
+             而開關側邊欄的按鈕本身也在側邊欄裡、懸浮選單鈕又被底部導覽列取代，
+             導致手機上完全沒有辦法回到 index.html -->
+        <a class="navbar-home" href="/index.html" aria-label="回首頁" title="回首頁">🏠</a>
         <h2 class="view-title" style="font-size:1.1rem;">租屋處電費管理</h2>
         <div class="property-select-row">
           <select id="propertySelect" class="property-select"></select>
@@ -98,6 +102,18 @@
             <button class="btn-secondary" id="btnCopyElectricityOnly">複製電費圖片</button>
             <button class="btn-primary" id="btnSaveBill">儲存本月帳單</button>
           </div>
+        </div>
+
+        <!-- 流程列：公共電費的計算需要「本月各房用電」，而那正是同一張表上要輸入的東西，
+             這個順序相依原本完全沒有顯示在畫面上，使用者容易在讀數還沒填完就先帶入公共電費 -->
+        <div class="bill-flow" id="billFlow">
+          <ol class="bill-flow-steps">
+            <li class="bill-flow-step" data-step="1"><span class="bill-flow-num">1</span>填本月讀數</li>
+            <li class="bill-flow-step" data-step="2"><span class="bill-flow-num">2</span>帶入公共電費</li>
+            <li class="bill-flow-step" data-step="3"><span class="bill-flow-num">3</span>儲存本月帳單</li>
+          </ol>
+          <div class="bill-flow-status" id="billFlowStatus">主表狀態確認中…</div>
+          <p class="bill-flow-note">讀數以每月 15 日抄表為準，與台電帳單期間的日期落差不影響試算結果。</p>
         </div>
 
         <div class="table-container">
@@ -197,9 +213,12 @@
           <!-- 動態生成：試算明細 -->
         </div>
 
-        <form class="add-room-form add-room-form--4col" id="masterMeterForm">
-          <label>期間（主表帳單對應月份）
-            <input type="month" id="masterMonthInput" required />
+        <form class="add-room-form add-room-form--5col" id="masterMeterForm">
+          <label>期間起始月
+            <input type="month" id="masterStartMonthInput" required />
+          </label>
+          <label>期間結束月（＝公共電費落帳月）
+            <input type="month" id="masterEndMonthInput" required />
           </label>
           <label>主表總用電度數
             <input type="number" step="0.01" id="masterUsageInput" placeholder="0" required />
@@ -217,7 +236,7 @@
           <table class="room-table" id="masterMeterTable">
             <thead>
               <tr>
-                <th>期間</th>
+                <th>涵蓋期間</th>
                 <th>總用電度數</th>
                 <th>總電費金額</th>
                 <th>平均電價</th>

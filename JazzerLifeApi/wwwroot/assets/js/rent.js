@@ -14,6 +14,7 @@ var RentApp = {
         billMonth: null, // "yyyy-MM"
         billRows: [],     // 目前畫面上的帳單列（含草稿列）
         showInactiveRooms: false,
+        hasMasterForMonth: false, // 目前電費月是否已有可試算的主表紀錄（決定「帶入公共電費」能不能按）
     },
 
     init: function () {
@@ -183,6 +184,7 @@ var RentApp = {
             .done(function (rows) {
                 self.state.billRows = rows || [];
                 self.renderBillTable();
+                self.refreshPublicElectricityStatus();
             })
             .fail(function (xhr) {
                 if (xhr.status === 401) {
@@ -209,12 +211,23 @@ var RentApp = {
                 ? '<button type="button" class="paid-badge ' + (r.IsPaid ? "is-paid" : "is-unpaid") + '" data-bill-id="' + r.BillId + '">' + (r.IsPaid ? "已收" : "未收") + '</button>'
                 : '<span class="paid-badge is-unpaid" style="opacity:0.5;">尚未建立</span>';
 
+            // 公共電費自 2026-08-10 起是快照欄位：已存檔的列預設鎖住，避免按「儲存本月帳單」或
+            // 重新試算時，把先前已確認的金額無聲蓋掉；草稿列則顯示「待試算」而不是一個假的預設值
+            var publicCell = r.BillId
+                ? '<td class="public-fee-cell">' +
+                  '<input type="number" step="1" class="public-electricity-input is-locked" value="' + r.PublicElectricityFee + '" readonly />' +
+                  '<button type="button" class="public-fee-unlock" title="此月公共電費已存檔，點擊解鎖後可手動修改">🔒</button>' +
+                  '</td>'
+                : '<td class="public-fee-cell">' +
+                  '<input type="number" step="1" class="public-electricity-input" value="' + (r.PublicElectricityFee || "") + '" placeholder="待試算" />' +
+                  '</td>';
+
             html += '<tr data-room-id="' + r.RoomId + '">' +
                 '<td>' + self.escapeHtml(r.RoomAlias) + '</td>' +
                 '<td>' + self.fmtNum(r.PrevReading) + '</td>' +
                 '<td><input type="number" step="0.01" class="current-reading-input" value="' + r.CurrentReading + '" /></td>' +
                 '<td class="usage-cell">' + self.fmtNum(r.UsageUnits) + '</td>' +
-                '<td><input type="number" step="1" class="public-electricity-input" value="' + r.PublicElectricityFee + '" /></td>' +
+                publicCell +
                 '<td class="fee-cell">' + self.fmtMoney(r.ElectricityFee + r.PublicElectricityFee) + '</td>' +
                 '<td>' + self.fmtMoney(r.RentSnapshot) + '</td>' +
                 '<td>' + self.fmtMoney(r.AdjustmentSnapshot) + '</td>' +
@@ -236,8 +249,19 @@ var RentApp = {
                 self.recalcRow(roomId);
             });
 
+            // data-dirty 標記使用者「明確動過」這一格：儲存時只有標記過的列會把公共電費送出，
+            // 沒動過的維持資料庫既有快照（送 null）
             $tr.find(".public-electricity-input").on("input", function () {
+                $(this).attr("data-dirty", "1");
                 self.recalcRow(roomId);
+            });
+
+            $tr.find(".public-fee-unlock").on("click", function () {
+                var $btn = $(this);
+                var $input = $tr.find(".public-electricity-input");
+                if (!$input.prop("readonly")) return;
+                $input.prop("readonly", false).removeClass("is-locked").focus();
+                $btn.text("🔓").attr("title", "已解鎖，修改後按「儲存本月帳單」才會存檔");
             });
 
             $tr.find(".paid-badge[data-bill-id]").on("click", function () {
@@ -301,12 +325,23 @@ var RentApp = {
             var $tr = $(this);
             var roomId = Number($tr.data("room-id"));
             if (!roomId) return;
+            var row = self.state.billRows.find(function (r) { return r.RoomId === roomId; });
             var currentReading = parseFloat($tr.find(".current-reading-input").val());
-            var publicElectricityFee = parseFloat($tr.find(".public-electricity-input").val());
+
+            // 公共電費：草稿列（尚未建立帳單）一律送出畫面上的值；已存檔的列只有在使用者
+            // 明確重新試算或解鎖修改過（data-dirty）時才送出，否則送 null 讓後端維持既有快照
+            var $publicInput = $tr.find(".public-electricity-input");
+            var isDirty = $publicInput.attr("data-dirty") === "1";
+            var publicElectricityFee = null;
+            if (!row || !row.BillId || isDirty) {
+                var parsed = parseFloat($publicInput.val());
+                publicElectricityFee = isNaN(parsed) ? 0 : parsed;
+            }
+
             rows.push({
                 RoomId: roomId,
                 CurrentReading: isNaN(currentReading) ? 0 : currentReading,
-                PublicElectricityFee: isNaN(publicElectricityFee) ? 0 : publicElectricityFee,
+                PublicElectricityFee: publicElectricityFee,
                 PrevReadingOverride: null,
                 Note: $tr.find(".note-input").val() || null,
             });
@@ -355,10 +390,57 @@ var RentApp = {
         return sum;
     },
 
-    /** Tab1 用的按鈕：直接試算目前月份的公共電費並帶入每一列，不用切去「公共電費」頁籤 */
+    /** 載入帳單後查一次主表狀態，更新流程列與「帶入公共電費」按鈕的可用狀態。
+     * 這裡刻意不傳 currentMonthUsage，因為只是要知道「這個月有沒有主表紀錄」，不是要正式試算。 */
+    refreshPublicElectricityStatus: function () {
+        var self = this;
+        if (!self.state.currentPropertyId) return;
+
+        var $status = $("#billFlowStatus");
+        var $btn = $("#btnApplyPublicElectricity");
+        $status.removeClass("is-ready is-missing").text("主表狀態確認中…");
+
+        $.get("/api/rent/public-electricity-estimate", { propertyId: self.state.currentPropertyId, month: self.state.billMonth })
+            .done(function (est) {
+                self.state.hasMasterForMonth = !!est.HasData;
+                if (est.HasData) {
+                    $status.addClass("is-ready").text(
+                        "主表已登記：" + est.StartMonth + " ~ " + est.EndMonth +
+                        "，共 " + self.fmtNum(est.MasterTotalUsageUnits) + " 度"
+                    );
+                    $btn.prop("disabled", false).attr("title", "");
+                } else {
+                    $status.addClass("is-missing").html(
+                        self.escapeHtml(est.Message || "尚無此月的主表電費紀錄") +
+                        ' <a href="#" class="bill-flow-link" id="linkGoMaster">前往登記</a>'
+                    );
+                    $btn.prop("disabled", true).attr("title", "尚未登記此月的主表電費紀錄，無法試算公共電費");
+                    $("#linkGoMaster").on("click", function (e) {
+                        e.preventDefault();
+                        self.switchFeature("master");
+                    });
+                }
+            })
+            .fail(function (xhr) {
+                if (xhr.status === 401) {
+                    window.location.assign("/signin.html#rent/rent");
+                    return;
+                }
+                $status.text("主表狀態查詢失敗");
+            });
+    },
+
+    /** Tab1 用的按鈕：試算目前月份的公共電費並帶入每一列（唯一的套用入口） */
     applyPublicElectricityToBill: function ($btn) {
         var self = this;
         if (!self.state.currentPropertyId) return;
+
+        // 已存檔的列帶有公共電費快照，覆蓋前先問過，避免把先前確認過的金額洗掉
+        var savedCount = self.state.billRows.filter(function (r) { return r.BillId; }).length;
+        if (savedCount > 0 &&
+            !confirm("此月已有 " + savedCount + " 列存檔的公共電費，重新試算會覆蓋這些金額（仍需按「儲存本月帳單」才會存檔）。要繼續嗎？")) {
+            return;
+        }
 
         $btn.prop("disabled", true).text("試算中...");
 
@@ -366,9 +448,12 @@ var RentApp = {
         $.get("/api/rent/public-electricity-estimate", { propertyId: self.state.currentPropertyId, month: self.state.billMonth, currentMonthUsage: currentMonthUsage })
             .done(function (est) {
                 if (!est.HasData) {
-                    // 尚無主表資料可試算時，直接把每一列的公共電費當 0 帶入，不跳出中斷操作的提示框
-                    self.applyZeroToBillRows();
+                    // 不再靜默把整欄填 0：沒有主表資料就是算不出來，直接說明並讓使用者去登記
+                    alert(est.Message || "尚無此月的主表電費紀錄，無法試算公共電費");
                     return;
+                }
+                if (est.IsNegativeExcess && est.Message) {
+                    alert(est.Message);
                 }
                 self.applyEstimateToBillRows(est);
             })
@@ -384,19 +469,8 @@ var RentApp = {
             });
     },
 
-    /** 尚無主表資料可試算時，把每一列的公共電費直接當 0 帶入（使用者仍可自行手動輸入覆蓋） */
-    applyZeroToBillRows: function () {
-        var self = this;
-        $("#billTableBody tr").each(function () {
-            var $tr = $(this);
-            var roomId = Number($tr.data("room-id"));
-            if (!roomId) return;
-            $tr.find(".public-electricity-input").val(0);
-            self.recalcRow(roomId);
-        });
-    },
-
-    /** 共用：把試算結果（每房個別金額）套進 Tab1 帳單表格目前顯示的每一列，回傳實際套用的列數 */
+    /** 把試算結果（每房個別金額）套進 Tab1 帳單表格目前顯示的每一列，回傳實際套用的列數。
+     * 套用等於「使用者明確指定了這個值」，所以連同已鎖定的列一起解鎖並標記 dirty，儲存時才會送出。 */
     applyEstimateToBillRows: function (est) {
         var self = this;
         var appliedCount = 0;
@@ -406,7 +480,12 @@ var RentApp = {
             if (!roomId) return;
             var match = (est.RoomBreakdown || []).find(function (b) { return b.RoomId === roomId; });
             if (!match) return;
-            $tr.find(".public-electricity-input").val(match.PublicElectricityFee);
+            $tr.find(".public-electricity-input")
+                .val(match.PublicElectricityFee)
+                .prop("readonly", false)
+                .removeClass("is-locked")
+                .attr("data-dirty", "1");
+            $tr.find(".public-fee-unlock").text("🔓").attr("title", "已重新試算，按「儲存本月帳單」才會存檔");
             self.recalcRow(roomId);
             appliedCount++;
         });
@@ -743,15 +822,27 @@ var RentApp = {
 
         $("#btnReloadMaster").on("click", function () { self.loadMasterMeterView(); });
 
+        // 起始月填好後，結束月若還沒填就先預設為下一個月（台電多為雙月一期，這是最常見的情況）
+        $("#masterStartMonthInput").on("change", function () {
+            var start = $(this).val();
+            if (!start || $("#masterEndMonthInput").val()) return;
+            $("#masterEndMonthInput").val(self.addMonths(start, 1));
+        });
+
         $("#masterMeterForm").on("submit", function (e) {
             e.preventDefault();
-            var month = $("#masterMonthInput").val();
+            var startMonth = $("#masterStartMonthInput").val();
+            var endMonth = $("#masterEndMonthInput").val();
             var usage = parseFloat($("#masterUsageInput").val());
             var amount = parseFloat($("#masterAmountInput").val());
             var note = $("#masterNoteInput").val();
 
-            if (!month || isNaN(usage) || isNaN(amount)) {
-                alert("請完整填寫期間、主表總用電度數與總電費金額");
+            if (!startMonth || !endMonth || isNaN(usage) || isNaN(amount)) {
+                alert("請完整填寫期間起訖月、主表總用電度數與總電費金額");
+                return;
+            }
+            if (endMonth < startMonth) {
+                alert("期間結束月不可早於起始月");
                 return;
             }
 
@@ -761,7 +852,8 @@ var RentApp = {
                 contentType: "application/json",
                 data: JSON.stringify({
                     PropertyId: self.state.currentPropertyId,
-                    BillMonth: month,
+                    StartMonth: startMonth,
+                    EndMonth: endMonth,
                     TotalUsageUnits: usage,
                     TotalAmount: amount,
                     Note: note || null,
@@ -812,6 +904,17 @@ var RentApp = {
             return;
         }
 
+        // 逐月列出區間內每個月的各房用電加總。原本只顯示「本月／上月」兩個數字，
+        // 使用者看不出哪個月其實完全沒有帳單資料（被當 0 計入，會讓公共度數被高估）
+        var monthRows = (est.MonthlyBreakdown || []).map(function (m) {
+            // IsLive 要優先於 BillCount：正在編輯的月份通常還沒存檔（BillCount 為 0），
+            // 但數字是來自畫面上的即時輸入值，標成「無帳單資料」會誤導
+            var tag = "";
+            if (m.IsLive) tag = '<span class="estimate-tag">畫面上的即時輸入值（尚未存檔）</span>';
+            else if (m.BillCount === 0) tag = '<span class="estimate-tag is-warn">無帳單資料，以 0 度計</span>';
+            return "<tr><td>" + m.Month + "</td><td>" + self.fmtNum(m.RoomUsage) + " 度</td><td>" + tag + "</td></tr>";
+        }).join("");
+
         // 公共部分度數是「整體」算出來的，平均分給每間房後，再各自用房間自己的電價換算金額，
         // 所以每間房的公共電費金額可能不同（電價不同），這裡列出每間房各自的試算結果
         var breakdownRows = (est.RoomBreakdown || []).map(function (b) {
@@ -819,27 +922,45 @@ var RentApp = {
                 " 元/度</td><td>" + self.fmtNum(b.UsageShare) + " 度</td><td>" + self.fmtMoney(b.PublicElectricityFee) + "</td></tr>";
         }).join("");
 
+        var excessRow = est.IsNegativeExcess
+            ? "<tr><td>公共部分度數</td><td colspan=\"3\"><span class=\"estimate-tag is-warn\">" +
+              self.fmtNum(est.RawExcessUsage) + " 度（負數，已以 0 計）</span></td></tr>"
+            : "<tr><td>公共部分度數</td><td colspan=\"3\">" + self.fmtNum(est.ExcessUsage) + " 度</td></tr>";
+
         html += '<p style="color:var(--color-text-secondary);font-size:0.8rem;margin-bottom:10px;">' +
-            "主表兩個月抄一次表，所以是拿「本月＋上月」各房用電加總去跟主表總用電比較差額。</p>" +
-            '<table class="room-table"><tbody>' +
+            "本期主表涵蓋 <strong>" + est.StartMonth + " ~ " + est.EndMonth + "</strong>，" +
+            "公共電費會落在結算月 " + est.EndMonth + " 的房客帳單。<br>" +
+            "讀數以每月 15 日抄表為準，與台電帳單期間的日期落差不影響試算結果。</p>";
+
+        if (est.IsNegativeExcess && est.Message) {
+            html += '<p class="estimate-warn">' + self.escapeHtml(est.Message) + "</p>";
+        }
+
+        html += '<table class="room-table"><tbody>' +
             "<tr><td>主表總用電度數</td><td colspan=\"3\">" + self.fmtNum(est.MasterTotalUsageUnits) + " 度</td></tr>" +
-            "<tr><td>本月各房用電加總</td><td colspan=\"3\">" + self.fmtNum(est.CurrentMonthRoomUsage) + " 度</td></tr>" +
-            "<tr><td>上月各房用電加總</td><td colspan=\"3\">" + self.fmtNum(est.PrevMonthRoomUsage) + " 度（無資料時當 0）</td></tr>" +
-            "<tr><td>本月＋上月合計</td><td colspan=\"3\">" + self.fmtNum(est.CombinedRoomUsage) + " 度</td></tr>" +
-            "<tr><td>公共部分度數</td><td colspan=\"3\">" + self.fmtNum(est.ExcessUsage) + " 度</td></tr>" +
+            "<tr><td>主表總電費金額</td><td colspan=\"3\">" + self.fmtMoney(est.MasterTotalAmount) +
+            "（僅供對照，公共電費是以度數分攤後依各房電價換算）</td></tr>" +
+            "<tr><td>區間內各房用電加總</td><td colspan=\"3\">" + self.fmtNum(est.CombinedRoomUsage) + " 度</td></tr>" +
+            excessRow +
             "<tr><td>目前啟用中房間數</td><td colspan=\"3\">" + est.ActiveRoomCount + " 間</td></tr>" +
             "<tr><td>每房分配度數</td><td colspan=\"3\">" + self.fmtNum(est.PerRoomUsageShare) + " 度（度數平均分攤，金額再各自依房間電價換算）</td></tr>" +
             "</tbody></table>" +
+            '<h4 style="font-size:0.85rem;margin:14px 0 8px;color:var(--color-text-secondary);">區間內各月用電</h4>' +
+            '<table class="room-table"><thead><tr><th>月份</th><th>各房用電加總</th><th>說明</th></tr></thead>' +
+            "<tbody>" + monthRows + "</tbody></table>" +
             '<h4 style="font-size:0.85rem;margin:14px 0 8px;color:var(--color-text-secondary);">各房間試算結果</h4>' +
             '<table class="room-table"><thead><tr><th>房間</th><th>每度電費</th><th>分配度數</th><th>公共電費</th></tr></thead>' +
             "<tbody>" + breakdownRows + "</tbody></table>" +
-            '<div style="margin-top:12px;"><button type="button" class="btn-primary" id="btnApplyEstimate">套用到電費計算表</button></div>';
+            // 套用入口統一收在「電費計算」頁：那裡才有本月讀數的即時輸入值，試算才準
+            '<p class="estimate-hint">要把金額帶入帳單，請到「電費計算」頁按<strong>「帶入公共電費」</strong>' +
+            '（本頁的試算為檢視用，讀數尚未填完時數字會不準）。' +
+            '<a href="#" class="bill-flow-link" id="linkGoBill">前往電費計算</a></p>';
 
         $("#publicEstimatePanel").html(html);
 
-        $("#btnApplyEstimate").on("click", function () {
-            self.applyEstimateToBillRows(est);
-            alert("已套用到「電費計算」頁的每一列，記得切換過去按「儲存本月帳單」才會存檔");
+        $("#linkGoBill").on("click", function (e) {
+            e.preventDefault();
+            self.switchFeature("bill");
         });
     },
 
@@ -872,8 +993,12 @@ var RentApp = {
         var html = "";
         records.forEach(function (m) {
             var unitCost = m.TotalUsageUnits > 0 ? (m.TotalAmount / m.TotalUsageUnits).toFixed(2) : "-";
+            // 期間顯示成「起始月 ~ 結束月」，結束月同時是公共電費的落帳月
+            var period = m.StartMonth === m.EndMonth
+                ? m.EndMonth
+                : m.StartMonth + " ~ " + m.EndMonth;
             html += '<tr data-master-id="' + m.MasterBillId + '">' +
-                "<td>" + m.BillMonth + "</td>" +
+                "<td>" + period + "</td>" +
                 "<td>" + self.fmtNum(m.TotalUsageUnits) + "</td>" +
                 "<td>" + self.fmtMoney(m.TotalAmount) + "</td>" +
                 "<td>" + unitCost + "</td>" +
@@ -925,6 +1050,16 @@ var RentApp = {
         a.click();
         a.remove();
         setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    },
+
+    /** "yyyy-MM" 加減月份，回傳同樣格式的字串（用本地時間逐項計算，不經過 Date 的時區換算） */
+    addMonths: function (yearMonth, delta) {
+        var parts = String(yearMonth).split("-");
+        var year = Number(parts[0]);
+        var month = Number(parts[1]) + delta;
+        year += Math.floor((month - 1) / 12);
+        month = ((month - 1) % 12 + 12) % 12 + 1;
+        return year + "-" + String(month).padStart(2, "0");
     },
 
     /** ==================== 格式化工具 ==================== */
