@@ -436,6 +436,7 @@ class FinanceApp {
             accounts: [{ id: "account-list", label: "帳戶總覽" }],
             settings: [
                 { id: "account-category", label: "帳戶分類" },
+                { id: "auto-rule", label: "自動分類規則" },
                 { id: "settings-general", label: "一般設定" },
             ],
             upload: [{ id: "upload-detail", label: "麻布資料" }],
@@ -679,6 +680,8 @@ class FinanceApp {
             this.updateProjectDetailSummary();
         });
         $("#pdAddRule").on("click", () => this.addCashflowRuleCard());
+        $("#btnAddAutoRule").on("click", () => this.openAutoRuleModal(null));
+        $("#btnRunAllAutoRules").on("click", () => this.runAllAutoRules());
         $("#pdOpenAssetModal").on("click", () => this.openAssetBindingModal());
         $("#pdClearAssetsAllMonths").on("click", () => this.clearAssetBindingsAllMonths());
         $("#pdCashflowAllMonths").on("click", () => {
@@ -929,6 +932,9 @@ class FinanceApp {
                 break;
             case "account-category":
                 selfObj.renderAccountCategoryGrid();
+                break;
+            case "auto-rule":
+                selfObj.renderAutoRuleList();
                 break;
             case "project-management":
                 $("#project_list").empty();
@@ -4225,6 +4231,567 @@ class FinanceApp {
             .fail(function (xhr) {
                 alert("更新分類失敗：" + (xhr.responseJSON?.message || "請洽系統管理員"));
             });
+    }
+
+    // ==================== 自動分類規則 ====================
+    // 依機構/帳戶/分類/標籤/描述/備註/金額比對明細，命中後自動改寫分類、標籤、備註與排除旗標。
+    // 規則卡片可單獨開關/編輯/刪除/執行，編輯彈窗會即時打預覽 API 顯示目前會命中哪些明細。
+
+    // 可比對的明細欄位（value 必須跟後端 FinanceAutoRuleEngine 認得的欄位名一致）
+    static get AUTO_RULE_FIELDS() {
+        return [
+            { value: "description", label: "明細描述" },
+            { value: "organizationName", label: "機構名稱" },
+            { value: "accountName", label: "帳戶名稱" },
+            { value: "category", label: "分類" },
+            { value: "tag", label: "標籤" },
+            { value: "notes", label: "備註" },
+            { value: "amount", label: "金額" },
+        ];
+    }
+
+    static get AUTO_RULE_TEXT_OPERATORS() {
+        return [
+            { value: "contains", label: "包含" },
+            { value: "notContains", label: "不包含" },
+            { value: "equals", label: "等於" },
+            { value: "startsWith", label: "開頭為" },
+            { value: "isEmpty", label: "為空白" },
+            { value: "isNotEmpty", label: "不為空白" },
+        ];
+    }
+
+    static get AUTO_RULE_AMOUNT_OPERATORS() {
+        return [
+            { value: "gt", label: "大於" },
+            { value: "gte", label: "大於等於" },
+            { value: "lt", label: "小於" },
+            { value: "lte", label: "小於等於" },
+            { value: "between", label: "介於" },
+            { value: "isIncome", label: "為收入" },
+            { value: "isExpense", label: "為支出" },
+        ];
+    }
+
+    // 這幾個運算子語意上就不需要比對值，UI 要把值欄位藏起來，後端驗證也放行空值
+    static get AUTO_RULE_VALUELESS_OPERATORS() {
+        return ["isEmpty", "isNotEmpty", "isIncome", "isExpense"];
+    }
+
+    _autoRuleFieldLabel(field) {
+        return (FinanceApp.AUTO_RULE_FIELDS.find((f) => f.value === field) || {}).label || field;
+    }
+
+    _autoRuleOperatorLabel(field, operator) {
+        const list = field === "amount" ? FinanceApp.AUTO_RULE_AMOUNT_OPERATORS : FinanceApp.AUTO_RULE_TEXT_OPERATORS;
+        return (list.find((o) => o.value === operator) || {}).label || operator;
+    }
+
+    _autoRuleModeLabel(mode) {
+        if (mode === "fillEmpty") return "僅空白時填入";
+        if (mode === "append") return "附加";
+        return "覆寫";
+    }
+
+    renderAutoRuleList() {
+        var self = this;
+        const list = document.getElementById("autoRuleList");
+        if (!list) {
+            return;
+        }
+        list.innerHTML = '<div class="ar-empty">載入中…</div>';
+
+        return $.get("/api/finance/auto-rules")
+            .done(function (rules) {
+                self.state.autoRules = rules || [];
+                self._renderAutoRuleCards();
+            })
+            .fail(function (xhr) {
+                list.innerHTML = `<div class="ar-empty">規則載入失敗：${self._escapeHtml(xhr.responseJSON?.message || "請洽系統管理員")}</div>`;
+            });
+    }
+
+    _renderAutoRuleCards() {
+        var self = this;
+        const list = document.getElementById("autoRuleList");
+        if (!list) {
+            return;
+        }
+        const rules = this.state.autoRules || [];
+
+        $("#arRuleCount").text("規則數：" + rules.length);
+        $("#arEnabledCount").text("啟用中：" + rules.filter((r) => r.IsEnabled).length);
+
+        if (rules.length === 0) {
+            list.innerHTML = '<div class="ar-empty">尚未建立任何規則。按「新增規則」開始，例如「明細描述 包含 星巴克 → 分類設為 餐飲」。</div>';
+            return;
+        }
+
+        list.innerHTML = rules
+            .map((rule, index) => {
+                const conditionText = (rule.Conditions || [])
+                    .map((c) => {
+                        const field = self._escapeHtml(self._autoRuleFieldLabel(c.Field));
+                        const op = self._escapeHtml(self._autoRuleOperatorLabel(c.Field, c.Operator));
+                        if (FinanceApp.AUTO_RULE_VALUELESS_OPERATORS.includes(c.Operator)) {
+                            return `<span class="ar-cond">${field} ${op}</span>`;
+                        }
+                        const value = c.Operator === "between"
+                            ? `${self._escapeHtml(c.Value || "")} ~ ${self._escapeHtml(c.Value2 || "")}`
+                            : self._escapeHtml(c.Value || "");
+                        return `<span class="ar-cond">${field} ${op} <b>${value}</b></span>`;
+                    })
+                    .join('<span class="ar-and">且</span>');
+
+                const actions = [];
+                if (rule.ActionCategory) actions.push(`分類 → <b>${self._escapeHtml(rule.ActionCategory)}</b>（${self._autoRuleModeLabel(rule.ActionCategoryMode)}）`);
+                if (rule.ActionTag) actions.push(`標籤 → <b>${self._escapeHtml(rule.ActionTag)}</b>（${self._autoRuleModeLabel(rule.ActionTagMode)}）`);
+                if (rule.ActionNotes) actions.push(`備註 → <b>${self._escapeHtml(rule.ActionNotes)}</b>（${self._autoRuleModeLabel(rule.ActionNotesMode)}）`);
+                if (rule.ActionIsExcluded === true) actions.push("設為<b>排除</b>");
+                if (rule.ActionIsExcluded === false) actions.push("設為<b>不排除</b>");
+                if (rule.ActionActivate === false) actions.push('<b class="ar-danger-text">停用明細</b>');
+                if (rule.ActionActivate === true) actions.push("<b>還原啟用</b>");
+
+                // LastRunAt 是 "2026-08-17T21:30:00" 這種 ISO 字串，取到分鐘就夠了。
+                // 沒執行過就整行不顯示（比印一行「尚未執行過」乾淨，卡片也少一行雜訊）
+                const lastRun = rule.LastRunAt
+                    ? `<div class="ar-line ar-line-muted">最後執行：${self._escapeHtml(String(rule.LastRunAt).replace("T", " ").slice(0, 16))}</div>`
+                    : "";
+
+                return `
+                <div class="ar-card ${rule.IsEnabled ? "" : "ar-card-disabled"}" data-rule-id="${rule.RuleId}">
+                    <div class="ar-card-head">
+                        <div class="ar-card-title-row">
+                            <span class="ar-order">${index + 1}</span>
+                            <span class="ar-name">${self._escapeHtml(rule.RuleName)}</span>
+                            <span class="ar-status ${rule.IsEnabled ? "ar-status-on" : "ar-status-off"}">${rule.IsEnabled ? "啟用中" : "已停用"}</span>
+                        </div>
+                        <div class="ar-card-actions">
+                            <button class="btn-secondary" data-ar-action="move-up" title="往前移（越前面越先執行）">▲</button>
+                            <button class="btn-secondary" data-ar-action="move-down" title="往後移（同欄位由順序在後的規則決定最終值）">▼</button>
+                            <button class="btn-secondary" data-ar-action="toggle">${rule.IsEnabled ? "停用" : "啟用"}</button>
+                            <button class="btn-secondary" data-ar-action="run">執行</button>
+                            <button class="btn-secondary" data-ar-action="edit">編輯</button>
+                            <button class="btn-danger" data-ar-action="delete">刪除</button>
+                        </div>
+                    </div>
+                    <div class="ar-card-body">
+                        <div class="ar-line"><span class="ar-line-label">條件</span><span class="ar-line-value">${conditionText || "（無條件）"}</span></div>
+                        <div class="ar-line"><span class="ar-line-label">動作</span><span class="ar-line-value">${actions.join("、") || "（無動作）"}</span></div>
+                        ${lastRun}
+                    </div>
+                </div>`;
+            })
+            .join("");
+
+        list.querySelectorAll("[data-ar-action]").forEach((btn) => {
+            btn.addEventListener("click", (event) => {
+                event.stopPropagation();
+                const ruleId = Number(btn.closest(".ar-card")?.dataset.ruleId);
+                const rule = (self.state.autoRules || []).find((r) => r.RuleId === ruleId);
+                if (!rule) return;
+                switch (btn.dataset.arAction) {
+                    case "toggle": self.toggleAutoRule(rule); break;
+                    case "run": self.runAutoRule(rule); break;
+                    case "edit": self.openAutoRuleModal(rule); break;
+                    case "delete": self.deleteAutoRule(rule); break;
+                    case "move-up": self.moveAutoRule(rule, -1); break;
+                    case "move-down": self.moveAutoRule(rule, 1); break;
+                }
+            });
+        });
+    }
+
+    toggleAutoRule(rule) {
+        var self = this;
+        $.post(`/api/finance/auto-rules/${rule.RuleId}/toggle`)
+            .done(function () {
+                self.renderAutoRuleList();
+            })
+            .fail(function (xhr) {
+                alert("切換失敗：" + (xhr.responseJSON?.message || "請洽系統管理員"));
+            });
+    }
+
+    deleteAutoRule(rule) {
+        var self = this;
+        this.showModal(
+            "刪除規則",
+            `<p>確定要刪除「${this._escapeHtml(rule.RuleName)}」嗎？</p>
+             <p class="pd-muted">刪除只會停用這條規則，<b>不會回溯撤銷</b>它先前已經寫到明細上的分類／標籤／備註／排除設定——那些值已經是明細本身的資料，要改請直接編輯明細。</p>`,
+            () => {
+                $.ajax({ url: `/api/finance/auto-rules/${rule.RuleId}`, type: "DELETE" })
+                    .done(function () {
+                        self.closeModal();
+                        self.renderAutoRuleList();
+                    })
+                    .fail(function (xhr) {
+                        alert("刪除失敗：" + (xhr.responseJSON?.message || "請洽系統管理員"));
+                    });
+            }
+        );
+    }
+
+    // 上/下移只改本地順序後整批送出，避免每按一次就要處理兩條規則的 priority 交換
+    moveAutoRule(rule, offset) {
+        var self = this;
+        const rules = [...(this.state.autoRules || [])];
+        const from = rules.findIndex((r) => r.RuleId === rule.RuleId);
+        const to = from + offset;
+        if (from < 0 || to < 0 || to >= rules.length) {
+            return;
+        }
+        rules.splice(to, 0, rules.splice(from, 1)[0]);
+        this.state.autoRules = rules;
+        this._renderAutoRuleCards();
+
+        $.ajax({
+            url: "/api/finance/auto-rules/reorder",
+            type: "PUT",
+            contentType: "application/json",
+            data: JSON.stringify({ ruleIds: rules.map((r) => r.RuleId) }),
+        }).fail(function (xhr) {
+            alert("調整順序失敗：" + (xhr.responseJSON?.message || "請洽系統管理員"));
+            self.renderAutoRuleList();
+        });
+    }
+
+    runAutoRule(rule) {
+        var self = this;
+        $.post(`/api/finance/auto-rules/${rule.RuleId}/run`)
+            .done(function (res) {
+                self.showModal("執行完成", `<p>${self._escapeHtml(res.message || "已執行")}</p>`, () => self.closeModal());
+                self.renderAutoRuleList();
+            })
+            .fail(function (xhr) {
+                alert("執行失敗：" + (xhr.responseJSON?.message || "請洽系統管理員"));
+            });
+    }
+
+    runAllAutoRules() {
+        var self = this;
+        this.showModal(
+            "執行全部規則",
+            `<p>將對<b>所有</b>交易明細，依序執行目前啟用中的規則。</p>
+             <p class="pd-muted">同一個欄位若被多條規則命中，順序在後的規則會覆蓋前面的結果；設為「僅空白時填入」的動作不會蓋掉你手動改過的值。</p>`,
+            () => {
+                self.closeModal();
+                $.post("/api/finance/auto-rules/run-all")
+                    .done(function (res) {
+                        self.showModal("執行完成", `<p>${self._escapeHtml(res.message || "已執行")}</p>`, () => self.closeModal());
+                        self.renderAutoRuleList();
+                    })
+                    .fail(function (xhr) {
+                        alert("執行失敗：" + (xhr.responseJSON?.message || "請洽系統管理員"));
+                    });
+            },
+            { confirmText: "開始執行" }
+        );
+    }
+
+    // ---------- 規則編輯彈窗（含即時預覽） ----------
+
+    openAutoRuleModal(rule) {
+        var self = this;
+        const isEdit = Boolean(rule);
+        // 編輯中的條件放在 state，因為條件列會動態增減，直接讀 DOM 容易跟畫面對不起來
+        this.state.autoRuleDraft = {
+            conditions: isEdit && (rule.Conditions || []).length > 0
+                ? rule.Conditions.map((c) => ({ field: c.Field, operator: c.Operator, value: c.Value || "", value2: c.Value2 || "" }))
+                : [{ field: "description", operator: "contains", value: "", value2: "" }],
+        };
+
+        const esc = (v) => this._escapeHtml(v || "");
+        const content = `
+        <div class="ar-form">
+            <div class="ar-form-row">
+                <label class="ar-form-label">規則名稱</label>
+                <input type="text" id="arRuleName" maxlength="100" placeholder="例如：餐飲自動歸類" value="${esc(rule?.RuleName)}" />
+            </div>
+
+            <div class="ar-form-section">
+                <div class="ar-form-section-head">
+                    <span>條件（全部符合才會命中）</span>
+                    <button type="button" class="btn-secondary" id="arAddCondition">新增條件</button>
+                </div>
+                <div id="arConditionList" class="ar-condition-list"></div>
+                <p class="pd-muted">文字條件的比對值可用半形逗號分隔多個值，同一列之間視為「或」，例如：<code>星巴克,路易莎</code>。金額條件一律以絕對值比較（支出在資料庫是負數，這樣「金額大於 1000」才符合直覺）。</p>
+            </div>
+
+            <div class="ar-form-section">
+                <div class="ar-form-section-head"><span>命中後要做的事（留白表示不動該欄位）</span></div>
+                <div class="ar-action-row">
+                    <label class="ar-form-label">分類</label>
+                    <input type="text" id="arActionCategory" maxlength="50" placeholder="例如：餐飲" value="${esc(rule?.ActionCategory)}" />
+                    <select id="arActionCategoryMode">
+                        <option value="overwrite">覆寫</option>
+                        <option value="fillEmpty">僅空白時填入</option>
+                    </select>
+                </div>
+                <div class="ar-action-row">
+                    <label class="ar-form-label">標籤</label>
+                    <input type="text" id="arActionTag" maxlength="50" placeholder="例如：日常" value="${esc(rule?.ActionTag)}" />
+                    <select id="arActionTagMode">
+                        <option value="overwrite">覆寫</option>
+                        <option value="fillEmpty">僅空白時填入</option>
+                        <option value="append">附加（保留原標籤）</option>
+                    </select>
+                </div>
+                <div class="ar-action-row">
+                    <label class="ar-form-label">備註</label>
+                    <input type="text" id="arActionNotes" maxlength="255" placeholder="例如：訂閱制" value="${esc(rule?.ActionNotes)}" />
+                    <select id="arActionNotesMode">
+                        <option value="overwrite">覆寫</option>
+                        <option value="fillEmpty">僅空白時填入</option>
+                        <option value="append">附加（保留原備註）</option>
+                    </select>
+                </div>
+                <div class="ar-action-row">
+                    <label class="ar-form-label">排除</label>
+                    <select id="arActionIsExcluded" class="ar-action-wide">
+                        <option value="">不變更</option>
+                        <option value="true">設為排除（不計入報表，明細仍看得到）</option>
+                        <option value="false">設為不排除</option>
+                    </select>
+                </div>
+                <div class="ar-action-row">
+                    <label class="ar-form-label">停用</label>
+                    <select id="arActionActivate" class="ar-action-wide">
+                        <option value="">不變更</option>
+                        <option value="false">停用明細（軟刪除，所有頁面都不再顯示）</option>
+                        <option value="true">還原啟用</option>
+                    </select>
+                </div>
+                <p class="pd-muted">「排除」只是不計入報表，明細清單仍看得到；「停用」等同舊 SP 的 <code>set Activate=0</code>，明細會從所有查詢消失，適合重複扣款、帳戶互轉這種根本不該出現在帳上的列。</p>
+            </div>
+
+            <div class="ar-form-section">
+                <div class="ar-form-section-head">
+                    <span>即時預覽</span>
+                    <span class="pd-chip" id="arPreviewCount">命中：-</span>
+                </div>
+                <div id="arPreviewTable" class="ar-preview"></div>
+            </div>
+        </div>`;
+
+        this.showModal(isEdit ? "編輯規則" : "新增規則", content, () => self.saveAutoRule(rule), {
+            wide: true,
+            confirmText: "儲存",
+        });
+
+        // 動作的模式下拉要在 innerHTML 塞完之後才設得到值
+        document.getElementById("arActionCategoryMode").value = rule?.ActionCategoryMode || "overwrite";
+        document.getElementById("arActionTagMode").value = rule?.ActionTagMode || "overwrite";
+        document.getElementById("arActionNotesMode").value = rule?.ActionNotesMode || "overwrite";
+        document.getElementById("arActionIsExcluded").value =
+            rule?.ActionIsExcluded === true ? "true" : rule?.ActionIsExcluded === false ? "false" : "";
+        document.getElementById("arActionActivate").value =
+            rule?.ActionActivate === true ? "true" : rule?.ActionActivate === false ? "false" : "";
+
+        document.getElementById("arAddCondition").addEventListener("click", () => {
+            self.state.autoRuleDraft.conditions.push({ field: "description", operator: "contains", value: "", value2: "" });
+            self._renderAutoRuleConditions();
+        });
+
+        this._renderAutoRuleConditions();
+    }
+
+    _renderAutoRuleConditions() {
+        var self = this;
+        const wrap = document.getElementById("arConditionList");
+        if (!wrap) {
+            return;
+        }
+        const conditions = this.state.autoRuleDraft?.conditions || [];
+
+        wrap.innerHTML = conditions
+            .map((c, i) => {
+                const ops = c.field === "amount" ? FinanceApp.AUTO_RULE_AMOUNT_OPERATORS : FinanceApp.AUTO_RULE_TEXT_OPERATORS;
+                const needsValue = !FinanceApp.AUTO_RULE_VALUELESS_OPERATORS.includes(c.operator);
+                const needsValue2 = c.operator === "between";
+                const isAmount = c.field === "amount";
+                return `
+                <div class="ar-condition" data-ar-cond-index="${i}">
+                    ${i > 0 ? '<span class="ar-and-badge">且</span>' : '<span class="ar-and-badge ar-and-badge-first">若</span>'}
+                    <select data-ar-cond="field">
+                        ${FinanceApp.AUTO_RULE_FIELDS.map((f) => `<option value="${f.value}" ${f.value === c.field ? "selected" : ""}>${f.label}</option>`).join("")}
+                    </select>
+                    <select data-ar-cond="operator">
+                        ${ops.map((o) => `<option value="${o.value}" ${o.value === c.operator ? "selected" : ""}>${o.label}</option>`).join("")}
+                    </select>
+                    ${needsValue
+                        ? `<input type="${isAmount ? "number" : "text"}" data-ar-cond="value" value="${self._escapeHtml(c.value)}" placeholder="${isAmount ? "數值" : "比對值（可用逗號分隔多值）"}" />`
+                        : '<span class="ar-cond-novalue">不需填值</span>'}
+                    ${needsValue2 ? `<input type="number" data-ar-cond="value2" value="${self._escapeHtml(c.value2)}" placeholder="上限" />` : ""}
+                    <button type="button" class="btn-danger" data-ar-cond-remove="${i}" ${conditions.length <= 1 ? "disabled" : ""}>移除</button>
+                </div>`;
+            })
+            .join("");
+
+        wrap.querySelectorAll("[data-ar-cond]").forEach((el) => {
+            const index = Number(el.closest("[data-ar-cond-index]").dataset.arCondIndex);
+            const key = el.dataset.arCond;
+            const handler = () => {
+                const cond = self.state.autoRuleDraft.conditions[index];
+                cond[key] = el.value;
+                if (key === "field") {
+                    // 文字欄位跟金額欄位的運算子清單完全不同，換欄位就要把運算子重設成該類型的預設值
+                    cond.operator = el.value === "amount" ? "gt" : "contains";
+                    cond.value = "";
+                    cond.value2 = "";
+                }
+                if (key === "field" || key === "operator") {
+                    self._renderAutoRuleConditions();
+                }
+                self._schedulePreview();
+            };
+            // 下拉改完就要立刻重畫（值欄位可能要跟著出現/消失），文字輸入則用 input 事件配合 debounce
+            el.addEventListener(el.tagName === "SELECT" ? "change" : "input", handler);
+        });
+
+        wrap.querySelectorAll("[data-ar-cond-remove]").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                self.state.autoRuleDraft.conditions.splice(Number(btn.dataset.arCondRemove), 1);
+                self._renderAutoRuleConditions();
+                self._schedulePreview();
+            });
+        });
+
+        this._schedulePreview();
+    }
+
+    // 每次改條件都打一次 API 會太吵，統一延遲 300ms 再送，且只採用最後一次請求的結果
+    _schedulePreview() {
+        var self = this;
+        clearTimeout(this._autoRulePreviewTimer);
+        this._autoRulePreviewTimer = setTimeout(() => self._refreshAutoRulePreview(), 300);
+    }
+
+    _refreshAutoRulePreview() {
+        var self = this;
+        const table = document.getElementById("arPreviewTable");
+        if (!table) {
+            return;
+        }
+        const conditions = this._collectAutoRuleConditions();
+        // 條件還沒填完整就先不打 API，免得畫面一直閃「命中 0 筆」造成誤會
+        const ready = conditions.length > 0 && conditions.every((c) => {
+            if (FinanceApp.AUTO_RULE_VALUELESS_OPERATORS.includes(c.operator)) return true;
+            if (c.operator === "between") return String(c.value).trim() !== "" && String(c.value2).trim() !== "";
+            return String(c.value).trim() !== "";
+        });
+        if (!ready) {
+            $("#arPreviewCount").text("命中：-");
+            table.innerHTML = '<div class="ar-empty">把條件填完整後，這裡會即時列出符合的明細。</div>';
+            return;
+        }
+
+        const token = (this._autoRulePreviewToken = (this._autoRulePreviewToken || 0) + 1);
+        $.ajax({
+            url: "/api/finance/auto-rules/preview",
+            type: "POST",
+            contentType: "application/json",
+            data: JSON.stringify({ conditions }),
+        })
+            .done(function (res) {
+                // 慢回來的舊請求不能蓋掉新結果
+                if (token !== self._autoRulePreviewToken) return;
+                self._renderAutoRulePreview(res);
+            })
+            .fail(function (xhr) {
+                if (token !== self._autoRulePreviewToken) return;
+                $("#arPreviewCount").text("命中：-");
+                table.innerHTML = `<div class="ar-empty">預覽失敗：${self._escapeHtml(xhr.responseJSON?.message || "請洽系統管理員")}</div>`;
+            });
+    }
+
+    _renderAutoRulePreview(res) {
+        var self = this;
+        const table = document.getElementById("arPreviewTable");
+        if (!table) {
+            return;
+        }
+        const rows = res?.matched || [];
+        const total = res?.totalCount || 0;
+        $("#arPreviewCount").text("命中：" + total + " 筆" + (res?.truncated ? `（僅列出前 ${rows.length} 筆）` : ""));
+
+        if (rows.length === 0) {
+            table.innerHTML = '<div class="ar-empty">目前沒有明細符合這組條件。</div>';
+            return;
+        }
+
+        // 預覽用純表格而不是 ag-Grid：表格是塞在彈窗裡、每次改條件都重畫，
+        // 用 ag-Grid 得處理實例的建立/銷毀生命週期，純表格單純且在手機上也好捲
+        table.innerHTML = `
+        <table class="ar-preview-table">
+            <thead>
+                <tr><th>日期</th><th>帳戶</th><th>描述</th><th>分類</th><th>標籤</th><th class="ar-num">金額</th></tr>
+            </thead>
+            <tbody>
+                ${rows.map((r) => `
+                <tr class="${r.IsExcluded || r.IsInactive ? "ar-preview-excluded" : ""}">
+                    <td>${self._escapeHtml(self.formatDate(r.TransactionDate))}</td>
+                    <td>${self._escapeHtml(r.AccountName)}</td>
+                    <td>${r.IsInactive ? '<span class="ar-tag-inactive">已停用</span> ' : ""}${self._escapeHtml(r.Description)}</td>
+                    <td>${self._escapeHtml(r.Category)}</td>
+                    <td>${self._escapeHtml(r.Tag)}</td>
+                    <td class="ar-num" style="color:${Number(r.Amount) < 0 ? "#ef5350" : "#66bb6a"}">${self._escapeHtml(self.formatCurrency(r.Amount))}</td>
+                </tr>`).join("")}
+            </tbody>
+        </table>`;
+    }
+
+    _collectAutoRuleConditions() {
+        return (this.state.autoRuleDraft?.conditions || []).map((c) => ({
+            field: c.field,
+            operator: c.operator,
+            value: FinanceApp.AUTO_RULE_VALUELESS_OPERATORS.includes(c.operator) ? null : String(c.value ?? "").trim(),
+            value2: c.operator === "between" ? String(c.value2 ?? "").trim() : null,
+        }));
+    }
+
+    saveAutoRule(rule) {
+        var self = this;
+        const name = String(document.getElementById("arRuleName")?.value || "").trim();
+        if (!name) {
+            alert("請輸入規則名稱");
+            return;
+        }
+
+        const isExcludedRaw = document.getElementById("arActionIsExcluded").value;
+        const activateRaw = document.getElementById("arActionActivate").value;
+        const payload = {
+            ruleName: name,
+            isEnabled: rule ? rule.IsEnabled : true,
+            conditions: this._collectAutoRuleConditions(),
+            actionCategory: String(document.getElementById("arActionCategory").value || "").trim() || null,
+            actionCategoryMode: document.getElementById("arActionCategoryMode").value,
+            actionTag: String(document.getElementById("arActionTag").value || "").trim() || null,
+            actionTagMode: document.getElementById("arActionTagMode").value,
+            actionNotes: String(document.getElementById("arActionNotes").value || "").trim() || null,
+            actionNotesMode: document.getElementById("arActionNotesMode").value,
+            actionIsExcluded: isExcludedRaw === "" ? null : isExcludedRaw === "true",
+            actionActivate: activateRaw === "" ? null : activateRaw === "true",
+        };
+
+        $.ajax({
+            url: rule ? `/api/finance/auto-rules/${rule.RuleId}` : "/api/finance/auto-rules",
+            type: rule ? "PUT" : "POST",
+            contentType: "application/json",
+            data: JSON.stringify(payload),
+        })
+            .done(function () {
+                self.closeModal();
+                self.renderAutoRuleList();
+            })
+            .fail(function (xhr) {
+                alert("儲存失敗：" + (xhr.responseJSON?.message || "請洽系統管理員"));
+            });
+    }
+
+    _escapeHtml(value) {
+        if (value === null || value === undefined) return "";
+        return String(value).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
     }
 
     // ---------- 通用表單 ----------

@@ -667,6 +667,22 @@
           <div id="account_category_grid" class="ag-theme-quartz-dark"></div>
         </div>
       </section>
+      <!-- 設定 - 自動分類規則 -->
+      <section class="content-view hidden" id="view-auto-rule" data-view="auto-rule">
+        <div class="view-header">
+          <h2 class="view-title">自動分類規則</h2>
+        </div>
+        <div class="view-actions">
+          <button class="btn-primary" id="btnAddAutoRule">新增規則</button>
+          <button class="btn-secondary" id="btnRunAllAutoRules">執行全部規則</button>
+        </div>
+        <!-- 統計 chip 與上方按鈕之間刻意留白，避免看起來像同一組控制項 -->
+        <div class="pd-stats ar-stats">
+          <span class="pd-chip" id="arRuleCount">規則數：0</span>
+          <span class="pd-chip" id="arEnabledCount">啟用中：0</span>
+        </div>
+        <div id="autoRuleList" class="ar-rule-list"></div>
+      </section>
       <!-- 投資組合 - 股票 -->
       <section class="content-view hidden" id="view-portfolio-overview" data-view="portfolio-overview">
         <div class="view-header">

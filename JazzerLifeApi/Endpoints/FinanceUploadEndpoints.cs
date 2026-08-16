@@ -41,6 +41,9 @@ namespace JazzerLifeApi.Endpoints
                 int detailCount = 0, accountCount = 0, stockCount = 0;
                 var errors = new List<string>();
                 var skipped = new List<string>();
+                // 本次新增的明細，等存檔後拿來套用「自動分類規則」。
+                // 只套用在新明細上（不動既有明細），既有明細要重跑請到規則頁按「全部執行」
+                var newDetails = new List<Detail>();
 
                 foreach (var file in files)
                 {
@@ -83,6 +86,7 @@ namespace JazzerLifeApi.Endpoints
                                 });
                             }
                             db.Details.AddRange(rows);
+                            newDetails.AddRange(rows);
                             detailCount += rows.Count;
                         }
 						else if (headers.Contains("帳戶金額"))
@@ -143,12 +147,54 @@ namespace JazzerLifeApi.Endpoints
 
                 await db.SaveChangesAsync();
 
+                // 明細寫入後自動套用一次「自動分類規則」。這裡刻意排在 SaveChanges 之後，
+                // 是為了讓新明細已經拿到 DetailID（規則執行結果的異動筆數要以 DetailID 去重）。
+                // 規則本身出錯不應該讓整包上傳失敗——明細已經進資料庫了，改回報成訊息就好。
+                int autoRuleMatched = 0, autoRuleChanged = 0, autoRuleCount = 0;
+                string? autoRuleError = null;
+                if (newDetails.Count > 0)
+                {
+                    try
+                    {
+                        var rules = await db.DetailAutoRules
+                            .Include(r => r.Conditions)
+                            .Where(r => r.UserId == userId && r.Activate && r.IsEnabled)
+                            .OrderBy(r => r.Priority).ThenBy(r => r.RuleId)
+                            .ToListAsync();
+
+                        if (rules.Count > 0)
+                        {
+                            var result = FinanceAutoRuleEndpoints.RunRules(rules, newDetails);
+                            autoRuleMatched = result.MatchedCount;
+                            autoRuleChanged = result.ChangedCount;
+                            autoRuleCount = rules.Count;
+
+                            var now = DateTime.Now;
+                            foreach (var rule in rules) rule.LastRunAt = now;
+                            await db.SaveChangesAsync();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogError(ex, "Auto rule apply failed after upload (userId={UserId})", userId);
+                        autoRuleError = "自動分類規則套用失敗，明細已寫入，請到「設定 → 自動分類規則」手動執行";
+                    }
+                }
+
+                var message = $"明細 {detailCount} 筆、帳戶 {accountCount} 筆、庫存 {stockCount} 筆已寫入";
+                if (autoRuleCount > 0)
+                    message += $"；自動分類規則 {autoRuleCount} 條命中 {autoRuleMatched} 筆、異動 {autoRuleChanged} 筆";
+
                 return Results.Ok(new
                 {
-                    message = $"明細 {detailCount} 筆、帳戶 {accountCount} 筆、庫存 {stockCount} 筆已寫入",
+                    message,
                     detailCount,
                     accountCount,
                     stockCount,
+                    autoRuleCount,
+                    autoRuleMatched,
+                    autoRuleChanged,
+                    autoRuleError,
                     skipped = skipped.Count > 0 ? skipped : null,
                     errors = errors.Count > 0 ? errors : null
                 });

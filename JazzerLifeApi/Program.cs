@@ -70,6 +70,7 @@ app.MapPartCategoryEndpoints();
 app.MapFinanceOverviewEndpoints();
 app.MapFinanceUploadEndpoints();
 app.MapFinanceDetailEndpoints();
+app.MapFinanceAutoRuleEndpoints();
 app.MapFinanceProjectEndpoints();
 app.MapFinanceProjectAssetEndpoints();
 app.MapFinanceProjectCashflowEndpoints();

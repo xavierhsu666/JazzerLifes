@@ -2111,3 +2111,436 @@ button {
 .file-status.error {
     color: var(--color-accent-red);
 }
+
+/* ==================== 自動分類規則（設定 › 自動分類規則） ==================== */
+
+.ar-rule-list {
+    display: grid;
+    gap: var(--spacing-md);
+}
+
+.ar-empty {
+    padding: var(--spacing-lg);
+    border-radius: var(--radius-md);
+    border: 1px dashed var(--color-gray-700);
+    color: var(--color-text-secondary);
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+.ar-card {
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-gray-800);
+    background: rgba(255, 255, 255, 0.04);
+    overflow: hidden;
+}
+
+/* 停用的規則整張卡片降低對比，一眼就能跟啟用中的規則分開 */
+.ar-card-disabled {
+    opacity: 0.55;
+}
+
+.ar-card-head {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+    padding: var(--spacing-md);
+    border-bottom: 1px solid var(--color-gray-800);
+}
+
+/* 編號＋名稱＋狀態一組。桌機上跟操作鈕同一行，手機上會被 media query 拆成上下兩段 */
+.ar-card-title-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+/* 執行順序編號：順序決定同一欄位被多條規則命中時誰的值最後生效，所以特意做得顯眼 */
+.ar-order {
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--color-tertiary);
+    border: 1px solid var(--color-gray-700);
+    font-size: 0.75rem;
+    color: var(--color-text-secondary);
+}
+
+.ar-name {
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.ar-status {
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+}
+
+.ar-status-on {
+    color: var(--color-accent-green);
+    border-color: var(--color-accent-green);
+}
+
+.ar-status-off {
+    color: var(--color-text-secondary);
+    border-color: var(--color-gray-700);
+}
+
+.ar-card-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.ar-card-actions button {
+    padding: 6px 10px;
+    font-size: 0.78rem;
+}
+
+.ar-card-body {
+    padding: var(--spacing-md);
+    display: grid;
+    gap: 8px;
+    font-size: 0.82rem;
+}
+
+.ar-line {
+    display: flex;
+    gap: var(--spacing-sm);
+    align-items: baseline;
+    flex-wrap: wrap;
+}
+
+.ar-line-label {
+    flex: 0 0 auto;
+    min-width: 32px;
+    color: var(--color-text-secondary);
+}
+
+.ar-line-value {
+    color: var(--color-text-primary);
+}
+
+.ar-line-muted {
+    color: var(--color-text-secondary);
+    font-size: 0.75rem;
+}
+
+.ar-cond {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    background: var(--color-tertiary);
+    border: 1px solid var(--color-gray-800);
+}
+
+.ar-and {
+    padding: 0 6px;
+    color: var(--color-text-secondary);
+}
+
+/* ---------- 規則編輯彈窗 ---------- */
+
+.ar-form {
+    display: grid;
+    gap: var(--spacing-lg);
+}
+
+.ar-form-row {
+    display: grid;
+    gap: 8px;
+}
+
+.ar-form-label {
+    color: var(--color-text-secondary);
+    font-size: 0.8rem;
+}
+
+.ar-form-section {
+    display: grid;
+    gap: 10px;
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--color-gray-800);
+}
+
+.ar-form-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+    font-size: 0.85rem;
+    color: var(--color-text-accent);
+}
+
+.ar-form-section-head button {
+    padding: 6px 10px;
+    font-size: 0.78rem;
+}
+
+.ar-condition-list {
+    display: grid;
+    gap: 8px;
+}
+
+/* 條件列：前置的「若/且」徽章 + 欄位 + 運算子 + 值(+上限) + 移除。
+   用 flex-wrap 讓窄畫面自然折行，不必為手機另外寫一套版型 */
+.ar-condition {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 8px;
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--color-gray-800);
+}
+
+.ar-and-badge {
+    flex: 0 0 auto;
+    font-size: 0.72rem;
+    color: var(--color-text-secondary);
+    min-width: 20px;
+}
+
+.ar-and-badge-first {
+    color: var(--color-text-accent);
+}
+
+.ar-condition select,
+.ar-condition input,
+.ar-form input[type="text"],
+.ar-action-row select,
+.ar-action-row input {
+    min-height: 36px;
+    padding: 7px 9px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-gray-700);
+    background-color: var(--color-tertiary);
+    color: var(--color-text-primary);
+    font-size: 0.82rem;
+}
+
+.ar-condition input {
+    flex: 1 1 140px;
+    min-width: 110px;
+}
+
+.ar-condition button {
+    padding: 6px 10px;
+    font-size: 0.75rem;
+}
+
+.ar-cond-novalue {
+    flex: 1 1 140px;
+    font-size: 0.75rem;
+    color: var(--color-text-secondary);
+}
+
+.ar-form input[type="text"] {
+    width: 100%;
+}
+
+.ar-action-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.ar-action-row .ar-form-label {
+    flex: 0 0 42px;
+}
+
+.ar-action-row input {
+    flex: 1 1 160px;
+    min-width: 120px;
+}
+
+.ar-action-row select {
+    flex: 0 0 auto;
+}
+
+.ar-action-row .ar-action-wide {
+    flex: 1 1 160px;
+}
+
+/* 即時預覽：固定高度 + 自行捲動，條件改動時不會讓整個彈窗長度跳來跳去 */
+.ar-preview {
+    max-height: 260px;
+    overflow: auto;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-gray-800);
+}
+
+.ar-preview .ar-empty {
+    border: none;
+}
+
+.ar-preview-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.76rem;
+}
+
+.ar-preview-table th,
+.ar-preview-table td {
+    padding: 6px 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--color-gray-800);
+    white-space: nowrap;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ar-preview-table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--color-secondary);
+    color: var(--color-text-secondary);
+    font-weight: 500;
+    z-index: 1;
+}
+
+.ar-preview-table .ar-num {
+    text-align: right;
+}
+
+/* 已被全域排除的明細在預覽裡淡化並加刪除線，避免誤以為規則會把它算進報表 */
+.ar-preview-excluded td {
+    opacity: 0.5;
+    text-decoration: line-through;
+}
+
+/* 「停用明細」是破壞性最強的動作（軟刪除），在規則卡片摘要上用紅字標出來 */
+.ar-danger-text {
+    color: var(--color-accent-red);
+}
+
+/* 預覽表格裡標示該筆明細目前已被停用（Activate = 0），跟「排除」不是同一件事 */
+.ar-tag-inactive {
+    display: inline-block;
+    padding: 0 5px;
+    border-radius: 3px;
+    border: 1px solid var(--color-gray-700);
+    color: var(--color-text-secondary);
+    font-size: 0.68rem;
+    text-decoration: none;
+}
+
+/* 統計 chip 跟上方的「新增規則／執行全部規則」拉開距離，
+   否則兩者靠太近看起來像同一組控制項（按鈕是動作、chip 是資訊） */
+.ar-stats {
+    margin-top: var(--spacing-lg);
+}
+
+@media (max-width: 767px) {
+
+    /* 手機版規則卡片：標題列與操作鈕分成上下兩段。
+       桌機版是「編號 名稱 狀態 ......... 六顆鈕」擠在同一行，
+       手機寬度放不下會亂折，改成標題一行、按鈕自己佔滿一列的兩段式 */
+    .ar-card-head {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--spacing-sm);
+        padding: var(--spacing-sm) var(--spacing-md);
+    }
+
+    /* 編號＋名稱＋狀態維持橫排，只有按鈕群另起一列 */
+    .ar-card-title-row {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        flex-wrap: wrap;
+    }
+
+    /* 六顆操作鈕改成 3 欄網格，每顆等寬且滿足 44px 觸控熱區 */
+    .ar-card-actions {
+        margin-left: 0;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+    }
+
+    .ar-card-actions button {
+        width: 100%;
+        padding: 0 6px;
+        min-height: 40px;
+        font-size: 0.8rem;
+    }
+
+    /* 條件／動作改成「標籤在上、內容在下」，長的關鍵字列表才不會被擠成細長一條 */
+    .ar-line {
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .ar-line-label {
+        font-size: 0.72rem;
+    }
+
+    /* 條件 chip 在窄畫面允許斷行，避免長關鍵字清單撐破卡片造成整頁橫向捲動 */
+    .ar-cond {
+        word-break: break-all;
+    }
+
+    .ar-card-body {
+        padding: var(--spacing-sm) var(--spacing-md) var(--spacing-md);
+    }
+
+    /* 規則編輯彈窗：條件列在手機上一律直排，
+       欄位/運算子/值三個控制項各自佔滿寬度才點得準 */
+    .ar-condition {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .ar-condition select,
+    .ar-condition input,
+    .ar-condition button {
+        width: 100%;
+    }
+
+    .ar-and-badge {
+        font-size: 0.7rem;
+    }
+
+    .ar-action-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .ar-action-row .ar-form-label {
+        flex: none;
+    }
+
+    .ar-action-row input,
+    .ar-action-row select {
+        width: 100%;
+    }
+
+    /* 預覽表格在手機上只留日期/描述/金額，帳戶與分類藏起來避免橫向擠壓 */
+    .ar-preview-table th:nth-child(2),
+    .ar-preview-table td:nth-child(2),
+    .ar-preview-table th:nth-child(4),
+    .ar-preview-table td:nth-child(4),
+    .ar-preview-table th:nth-child(5),
+    .ar-preview-table td:nth-child(5) {
+        display: none;
+    }
+
+    .ar-preview-table td {
+        white-space: normal;
+        max-width: none;
+    }
+}

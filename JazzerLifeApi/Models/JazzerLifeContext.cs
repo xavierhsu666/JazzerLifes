@@ -25,6 +25,10 @@ public partial class JazzerLifeContext : DbContext
 
     public virtual DbSet<Detail> Details { get; set; }
 
+    public virtual DbSet<DetailAutoRule> DetailAutoRules { get; set; }
+
+    public virtual DbSet<DetailAutoRuleCondition> DetailAutoRuleConditions { get; set; }
+
     public virtual DbSet<EconAlertLog> EconAlertLogs { get; set; }
 
     public virtual DbSet<EconAlertRule> EconAlertRules { get; set; }
@@ -189,6 +193,60 @@ public partial class JazzerLifeContext : DbContext
             entity.Property(e => e.Tag).HasMaxLength(50);
             entity.Property(e => e.UpdatedAt).HasColumnType("datetime");
             entity.Property(e => e.UserId).HasColumnName("UserID");
+        });
+
+        modelBuilder.Entity<DetailAutoRule>(entity =>
+        {
+            entity.HasKey(e => e.RuleId);
+
+            entity.ToTable("DetailAutoRule", "FIN");
+
+            entity.HasIndex(e => new { e.UserId, e.Activate, e.Priority }, "IX_DetailAutoRule_UserId");
+
+            entity.Property(e => e.RuleId).HasColumnName("RuleID");
+            entity.Property(e => e.UserId).HasColumnName("UserID");
+            entity.Property(e => e.RuleName).HasMaxLength(100);
+            entity.Property(e => e.IsEnabled).HasDefaultValue(true);
+            entity.Property(e => e.Activate).HasDefaultValue(true);
+            // 長度對齊 FIN.Detail 的目標欄位，避免規則存得下、套用時寫不進去
+            entity.Property(e => e.ActionCategory).HasMaxLength(50);
+            entity.Property(e => e.ActionCategoryMode).HasMaxLength(20);
+            entity.Property(e => e.ActionTag).HasMaxLength(50);
+            entity.Property(e => e.ActionTagMode).HasMaxLength(20);
+            entity.Property(e => e.ActionNotes).HasMaxLength(255);
+            entity.Property(e => e.ActionNotesMode).HasMaxLength(20);
+            entity.Property(e => e.LastRunAt).HasColumnType("datetime");
+            // ActionIsExcluded / ActionActivate 都是可為 null 的 bit，null 代表「這條規則不碰該旗標」
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+        });
+
+        modelBuilder.Entity<DetailAutoRuleCondition>(entity =>
+        {
+            entity.HasKey(e => e.ConditionId);
+
+            entity.ToTable("DetailAutoRuleCondition", "FIN");
+
+            entity.HasIndex(e => e.RuleId, "IX_DetailAutoRuleCondition_RuleId");
+
+            entity.Property(e => e.ConditionId).HasColumnName("ConditionID");
+            entity.Property(e => e.RuleId).HasColumnName("RuleID");
+            entity.Property(e => e.Field).HasMaxLength(30);
+            entity.Property(e => e.Operator).HasMaxLength(20);
+            entity.Property(e => e.Value).HasMaxLength(500);
+            entity.Property(e => e.Value2).HasMaxLength(100);
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+
+            entity.HasOne(d => d.Rule).WithMany(p => p.Conditions)
+                .HasForeignKey(d => d.RuleId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_DetailAutoRuleCondition_Rule");
         });
 
         modelBuilder.Entity<EconIndicator>(entity =>

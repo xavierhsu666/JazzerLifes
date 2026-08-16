@@ -11,7 +11,9 @@
  * 更新快取版本：修改 CACHE_VERSION 即可讓舊快取在 activate 階段被清除，強迫使用者拿到新版靜態檔案。
  */
 
-const CACHE_VERSION = "v1";
+// v1 -> v2（2026-08-17）：finance.html／finance.js／finance.css 因「自動分類規則」大幅改動，
+// 手機 PWA 可能出現「HTML 是新的、CSS/JS 是舊的」混合狀態，改版本號強制清掉舊快取
+const CACHE_VERSION = "v2";
 const CACHE_NAME = `jazzerlife-shell-${CACHE_VERSION}`;
 
 self.addEventListener("install", (event) => {

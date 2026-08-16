@@ -49,8 +49,9 @@
 | ├─ 現金流 | 用關鍵字規則比對交易明細，追蹤專案的**每月實際收支**；命中的個別明細可再手動設定「專案層面排除」，只影響該專案的統計，不動全域排除旗標、不影響其他專案 |
 | └─ 預期資產變化 | 以「建立專案時設定的預算」為期初資產，依年化流入/流出率推算，驗證財務規劃假設是否如預期 |
 | 帳單管理 | 週期性帳單登記，支援新增/編輯/刪除，依頻率規則（週/月/年）自動展開全年支出預測 |
-| 資料上傳 | 上傳銀行匯出的 CSV 檔案，自動依欄位特徵判斷為收支明細/帳戶餘額/股票庫存並寫入資料庫 |
+| 資料上傳 | 上傳銀行匯出的 CSV 檔案，自動依欄位特徵判斷為收支明細/帳戶餘額/股票庫存並寫入資料庫；明細寫入後會自動對**本次新增**的明細套用一次全部啟用中的自動分類規則 |
 | 存款帳戶總覽 | 依月份查看各帳戶餘額快照，支援手動修改結餘 |
+| 自動分類規則 | 設定 › 自動分類規則。依機構/帳戶/分類/標籤/描述/備註/金額比對明細，命中後自動設定分類、標籤、備註、排除旗標與停用（軟刪除）；每條規則可單獨開啟/關閉/編輯/刪除/執行，也可整批執行，新增或編輯時即時列出符合條件的明細。規則依順序執行且**後面的規則看到前面規則改過的結果**，因此「標籤 為空白」條件可完整取代舊 `FIN.ins_Detail_Tag_With_Rule` 預存程序的 `Tag is null` 守門寫法（該 SP 的既有規則已轉成種子腳本 `scripts/sql/finance_detail_auto_rule_seed_from_sp_2026-08-17.sql`）|
 
 ### 🌡️ 總體經濟溫度計（Macro Pulse）
 
@@ -236,6 +237,8 @@ JazzerLifeApi/
 │   ├── DashboardEndpoints.cs        # 車輛 Dashboard 綜合查詢
 │   ├── FinanceOverviewEndpoints.cs  # 財務總覽
 │   ├── FinanceDetailEndpoints.cs    # 收支明細 + 分類分析
+│   ├── FinanceAutoRuleEndpoints.cs  # 自動分類規則 CRUD/預覽/執行
+│   ├── FinanceAutoRuleEngine.cs     # 自動分類規則的條件比對與動作套用邏輯
 │   ├── FinanceProjectEndpoints.cs   # 財務專案列表
 │   ├── FinanceProjectAssetEndpoints.cs     # 專案-資產流
 │   ├── FinanceProjectCashflowEndpoints.cs  # 專案-現金流
@@ -325,7 +328,13 @@ scripts/
 | GET/POST | `/api/finance/projects/{id}/expected` | 預期資產變化查詢/產生草稿 |
 | GET/POST/PUT/DELETE | `/api/finance/bills` | 帳單管理 CRUD（`PUT`/`DELETE` 需帶 `{billId}`） |
 | GET/PUT | `/api/finance/accounts` | 存款帳戶總覽/修改結餘 |
-| POST | `/api/finance/upload-details` | CSV 資料上傳（明細/帳戶/庫存自動判斷）|
+| POST | `/api/finance/upload-details` | CSV 資料上傳（明細/帳戶/庫存自動判斷）；明細寫入後自動套用啟用中的自動分類規則，回應帶 `autoRuleCount`／`autoRuleMatched`／`autoRuleChanged` |
+| GET/POST | `/api/finance/auto-rules` | 自動分類規則查詢／新增 |
+| PUT/DELETE | `/api/finance/auto-rules/{ruleId}` | 編輯（條件整批取代）／刪除（軟刪除，不回溯撤銷已套用的值） |
+| POST | `/api/finance/auto-rules/{ruleId}/toggle` | 單獨開啟／關閉規則 |
+| PUT | `/api/finance/auto-rules/reorder` | 整批更新執行順序（順序決定同欄位衝突時誰的值最後生效） |
+| POST | `/api/finance/auto-rules/preview` | 即時預覽：吃尚未存檔的條件定義，回傳會命中的明細（最多 300 筆） |
+| POST | `/api/finance/auto-rules/{ruleId}/run`、`/api/finance/auto-rules/run-all` | 執行單一規則／依序執行全部啟用中的規則 |
 
 ### 總體經濟溫度計
 
