@@ -65,7 +65,14 @@ API：
   icacls "<發布路徑>\App_Data" /grant "IIS AppPool\<PoolName>:(OI)(CI)M" /T
   ```
 
-- 金鑰若真的遺失，後端解密會失敗，此時 API 會當成「沒設定密碼」處理（不會丟例外），使用者重新在「一般設定」輸入一次即可。
+- **資料夾建不起來不會讓網站掛掉**：`Program.cs` 對 `Directory.CreateDirectory` 包了 try-catch，失敗時退回「金鑰只放記憶體」並在啟動日誌留警告（曾在正式機第一次部署時因 App Pool 沒有寫入權限而導致整站啟動失敗，故改為非致命）。
+- 金鑰若遺失或只在記憶體，後端解密會失敗，此時 API 會當成「沒設定密碼」處理（不會丟例外），使用者重新在「一般設定」輸入一次即可。
+- 正式機一併記得授權：
+
+  ```powershell
+  New-Item -ItemType Directory -Force "C:\inetpub\JazzerLife\App_Data\keys"
+  icacls "C:\inetpub\JazzerLife\App_Data" /grant "IIS AppPool\JazzerLifeAppPool:(OI)(CI)M" /T
+  ```
 
 ## 五、集保 PDF 匯入相關
 

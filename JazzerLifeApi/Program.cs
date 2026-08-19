@@ -24,12 +24,26 @@ builder.Services.AddHangfireServer();
 // 金鑰預設會存到使用者設定檔目錄，但 IIS App Pool 常常沒有載入使用者設定檔，
 // 那樣金鑰只留在記憶體，重啟後舊密文就解不開；因此明確落地到 ContentRoot\App_Data\keys
 // （可用 appsettings.json 的 DataProtection:KeysPath 覆寫），該資料夾需給 App Pool 寫入權限。
+//
+// 這段刻意包 try-catch：正式機第一次部署時 App Pool 對發布目錄沒有建立資料夾的權限，
+// 原本會在啟動階段丟 UnauthorizedAccessException 讓整個網站起不來——一個設定功能不該拖垮全站。
+// 建不起來就退回「金鑰只放記憶體」，其餘功能照常運作，只有已儲存的集保 PDF 密碼會在重啟後失效
+// （API 解不開時會當成沒設定密碼，使用者重新輸入即可），並在啟動日誌留下警告。
+var dataProtectionBuilder = builder.Services.AddDataProtection().SetApplicationName("JazzerLife");
 var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"]
 	?? Path.Combine(builder.Environment.ContentRootPath, "App_Data", "keys");
-Directory.CreateDirectory(dataProtectionKeysPath);
-builder.Services.AddDataProtection()
-	.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath))
-	.SetApplicationName("JazzerLife");
+try
+{
+	Directory.CreateDirectory(dataProtectionKeysPath);
+	dataProtectionBuilder.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
+}
+catch (Exception ex)
+{
+	Console.Error.WriteLine(
+		$"[警告] Data Protection 金鑰資料夾不可用（{dataProtectionKeysPath}）：{ex.Message}。" +
+		"金鑰將只保留在記憶體，重啟後已儲存的集保 PDF 密碼需重新設定。" +
+		"請給 App Pool 該資料夾的寫入權限，或用 appsettings.json 的 DataProtection:KeysPath 指定可寫入的位置。");
+}
 builder.Services.AddScoped<EconDataSyncRunner>();
 builder.Services.AddAuthentication(Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme)
 	.AddCookie(options =>
