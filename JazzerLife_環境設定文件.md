@@ -258,6 +258,29 @@ Start-WebAppPool -Name "JazzerLifeAppPool"
   ```
   才能在 HTTP 環境下正常登入。這個設定不進版控，換新測試機或重建 appsettings.json 時容易忘記，要記得補上。
 
+### Data Protection 金鑰資料夾（2026-08-19 新增，部署必看）
+
+集保存摺 PDF 的開啟密碼會用 ASP.NET Core Data Protection 加密後存進 `FIN.UserSetting`，金鑰預設落地在
+`<發布路徑>\App_Data\keys`（可用 `appsettings.json` 的 `DataProtection:KeysPath` 覆寫）。
+
+**兩台機器部署後都要給應用程式集區寫入權限**，否則金鑰只會留在記憶體，重啟後已儲存的密碼就解不開：
+
+```powershell
+# 正式機
+New-Item -ItemType Directory -Force "C:\inetpub\JazzerLife\App_Data\keys"
+icacls "C:\inetpub\JazzerLife\App_Data" /grant "IIS AppPool\JazzerLifeAppPool:(OI)(CI)M" /T
+
+# 測試機
+New-Item -ItemType Directory -Force "E:\WebApplication\JazzerLifeTest\App_Data\keys"
+icacls "E:\WebApplication\JazzerLifeTest\App_Data" /grant "IIS AppPool\JazzerLifeTestPool:(OI)(CI)M" /T
+```
+
+> **踩過的坑**：第一版把 `Directory.CreateDirectory` 放在啟動路徑上且未攔例外，正式機因 App Pool 沒有建立
+> 資料夾的權限，直接在啟動階段丟 `UnauthorizedAccessException`，**整個網站起不來**。現已改為 try-catch，
+> 建不起來只會退回「金鑰放記憶體」並在啟動日誌留警告，網站照常啟動——但密碼持久化仍需上面的授權。
+
+`App_Data/` 已加入 `.gitignore`，金鑰不進版控（兩台機器各自產生）。
+
 ### 專案結構（節錄）
 
 ```
@@ -420,6 +443,9 @@ finance.html / finance.js 為獨立的 Class 架構（FinanceApp）。已完成�
 | 麻布資料上傳（原收支明細上傳） | `/api/finance/upload-details` | 完成（C# CsvHelper 解析，取代原 Python Flask + 排程機制） |
 | 存款帳戶總覽 + 修改結餘 | `/api/finance/accounts`、`/accounts/months`、`/accounts/balance` | 完成 |
 | 自動分類規則（2026-08-17 新增） | `/api/finance/auto-rules`（GET/POST）、`/{ruleId}`（PUT/DELETE）、`/{ruleId}/toggle`、`/reorder`、`/preview`、`/{ruleId}/run`、`/run-all` | 開發完成，**2 支 SQL 尚未執行**；取代舊的 `FIN.ins_Detail_Tag_With_Rule` 預存程序（詳見下方設計決策） |
+| 集保存摺 PDF 月結（2026-08-19 新增） | `/api/finance/stock-pdf/preview`、`/import`、`/imports`（GET/DELETE）、`/settle` | 開發完成，**1 支 SQL 尚未執行**（`finance_stock_pdf_import_2026-08-19.sql`），待測試機驗證 |
+| 一般設定（2026-08-19 新增） | `/api/finance/settings`、`/settings/tdcc-password`、`/settings/closing-day`、`/monthly-checklist` | 開發完成，**1 支 SQL 尚未執行**（`finance_user_setting_2026-08-19.sql`） |
+| 資產統計未計入診斷（2026-08-19 新增） | `/api/finance/overview/uncounted` | 完成，無 SQL |
 | 投資組合 | — | 決定移除（不再維護） |
 | 未來規劃（退休/貸款試算） | — | 決定移除（不再維護） |
 
@@ -549,6 +575,9 @@ git config --global --add safe.directory <資料夾路徑>
 | — | **Finance 模組（2026-08-10）：專案管理編輯重新設計** — 資產綁定改彈窗（勾選/資產分類/資產/餘額表格 + 套用至版本月份／所有月份）、基礎資訊新增「現金流計入上月實際資產」勾選、收支對比圖表改為每專案一張小圖各自 y 軸 | 開發完成，**1 支 SQL 尚未執行**，待測試機驗證 |
 | — | **全模組（2026-08-10）：手機版回首頁按鈕** — finance／macro／rent／trading 頂端導覽列新增僅手機顯示的 🏠 按鈕，修正手機上無法回 index.html 的問題（car 模組結構不同，尚未處理） | 開發完成，**無 SQL 待執行**，可直接部署 |
 | — | **Finance 模組（2026-08-17）：自動分類規則** — 多條件 AND／欄位內多值 OR 的規則引擎，命中後自動套用分類/標籤/備註/排除/停用；規則可單獨啟停、編輯、刪除、執行，也可整批執行；新增/編輯時即時預覽命中明細；明細上傳後自動對新明細套用一次。取代舊的 `FIN.ins_Detail_Tag_With_Rule` 預存程序 | 開發完成，**2 支 SQL 尚未於任一環境執行**（第 2 支為選用的規則種子），待測試機驗證 |
+| — | **Finance 模組（2026-08-19）：集保存摺 PDF 辨識與月結** — PdfPig 依文字座標還原表格、多份 PDF 逐份上傳、四道重複防呆（檔案雜湊／內容雜湊／同來源更新版／同月重複結算）、結算合併成一筆 `FIN.BankAccount`（集保／集保庫存） | 開發完成，**2 支 SQL 尚未於任一環境執行**，待測試機驗證 |
+| — | **Finance 模組（2026-08-19）：一般設定 + 結帳檢查清單** — 集保 PDF 密碼加密儲存（Data Protection）、每月結帳日設定、上傳頁顯示當月四項結帳待辦（麻布明細／麻布帳戶餘額／集保上傳／集保結算） | 開發完成，**1 支 SQL 尚未執行**（與上列共用 `finance_user_setting`） |
+| — | **Finance 模組（2026-08-19）：資產統計改依帳戶分類** — 總資產／總負債／淨資產不再用餘額正負號，改以「設定 › 帳戶分類」判定（含「資產」計資產、含「負債」計負債、含「忽視／忽略／不計入／排除」視為刻意排除、其餘提醒補設定），並修正「本月資產結餘」把負債重複加一次的既有 bug | 開發完成，**無 SQL 待執行** |
 | 五 | 上線前安全檢查清單 | 尚未開始 |
 
 ### 尚待處理事項
@@ -567,7 +596,7 @@ git config --global --add safe.directory <資料夾路徑>
 - [ ] Rent 模組 2026-08-10 異動部署前需先於 SSMS 依序執行 `scripts/sql/rent_schema_add_master_period_2026-08-10.sql` 與 `scripts/sql/rent_fix_initial_readings_2026-08-10.sql`（第 2 支會異動正式資料，先跑腳本內的 SELECT 確認受影響列）。
 - [ ] Rent 模組公共電費維持「度數平均分攤 × 各房約定電價」，主表的總電費金額不進入計算，因此分攤總額與台電實際帳單金額會有落差（各房電價與實際均價的差額由房東吸收或多收）。此為已知取捨，若日後希望兩者對齊，需改為「金額分攤」（公共電費總額 = 主表總金額 − Σ各房自身電費）。
 - [ ] Rent 模組公共電費的分攤分母採「目前啟用中的房間數」，期間內有房間退租／新入住時會與實際居住狀況有落差（已退租房間的用電仍會被扣除，只是不分攤公共部分）。
-- [ ] **Service Worker 靜態檔快取（2026-08-10 新增，部署後若畫面沒更新請先看這裡）**：`wwwroot/service-worker.js` 採「網路優先、失敗才回快取」策略快取同網域的 HTML/CSS/JS。手機（尤其是加到主畫面的 PWA）可能出現「HTML 是新的、CSS/JS 是舊的」的混合狀態，症狀是版面錯亂、新功能沒作用。`CACHE_VERSION` 已於 2026-08-17 隨「自動分類規則」的前端改動由 `v1` 提升為 `v2`（activate 階段會清掉 `jazzerlife-shell-v1` 快取）。**往後每次含前端改動的部署，都要一併把此版本號往上加。**
+- [ ] **Service Worker 靜態檔快取（2026-08-10 新增，部署後若畫面沒更新請先看這裡）**：`wwwroot/service-worker.js` 採「網路優先、失敗才回快取」策略快取同網域的 HTML/CSS/JS。手機（尤其是加到主畫面的 PWA）可能出現「HTML 是新的、CSS/JS 是舊的」的混合狀態，症狀是版面錯亂、新功能沒作用。`CACHE_VERSION` 已於 2026-08-19 隨「集保存摺月結／一般設定／資產統計改版」的前端改動由 `v2` 提升為 `v3`（activate 階段會清掉 `jazzerlife-shell-v2` 快取）。**往後每次含前端改動的部署，都要一併把此版本號往上加。**
 - [ ] car 模組手機版沒有回 index.html 的入口（`car-layout.css` 直接 `.app-sidebar { display: none }`，且無頂端導覽列可放按鈕）。其餘四個模組已於 2026-08-10 以 `.navbar-home` 補上，car 需另行決定放在底部導覽列或車輛下拉選單旁。
 - [ ] Rent 模組「公共電費」試算需要使用者持續在「公共電費」頁籤登記主表（母表）讀數（期間需與電費月相同），否則會以 0 帶入；待實際使用幾個月後再評估試算準確度。
 - [ ] Rent 模組目前只有前端單一物件視角（無物件切換 UI），資料庫已支援多物件，未來如需擴充多個出租地址只需前端調整。
@@ -578,6 +607,11 @@ git config --global --add safe.directory <資料夾路徑>
 - [ ] **Finance 模組自動分類規則（2026-08-17）部署前需先於測試機、正式機 SSMS 執行 `scripts/sql/finance_detail_auto_rule_2026-08-17.sql`**（建表；腳本尾端含 idempotent 的 `ALTER TABLE ... ADD ActionActivate`，已跑過早期版本者重跑同一支即可補欄位）。未執行前呼叫任何 `/api/finance/auto-rules*` 端點會因 EF 找不到資料表而報錯；明細上傳仍可正常寫入（自動套用階段的例外已被攔截，回應改帶 `autoRuleError`）。
 - [ ] Finance 模組自動分類規則種子（選用）：`scripts/sql/finance_detail_auto_rule_seed_from_sp_2026-08-17.sql` 會建立由舊 SP 轉出的 12 條規則（`@UserID` 預設 1003，可重複執行、同名規則自動略過）。**首次套用前務必先逐條按「執行」看預覽**，尤其編號 1、2、12 的動作是「停用明細」（軟刪除），確認命中結果後再按「執行全部規則」。
 - [ ] 舊的 `FIN.ins_Detail_Tag_With_Rule` 預存程序在自動分類規則上線後仍有三段無法被取代（抽籤配對、BankAccount 帳戶指派與停用），需決定是保留 SP 只跑那三段、還是另行開發。**在決定前不要直接刪除該 SP。**
+- [ ] **Finance 模組 2026-08-19 異動部署前需先於測試機、正式機 SSMS 依序執行 `scripts/sql/finance_user_setting_2026-08-19.sql` 與 `scripts/sql/finance_stock_pdf_import_2026-08-19.sql`**（兩支互不相依，皆可重複執行）。未執行前「設定 › 一般設定」、「上傳 › 集保存摺」與結帳檢查清單的 API 會因 EF 找不到資料表而報錯。
+- [ ] Finance 集保結算寫出的「集保／集保庫存」帳戶記得到「設定 › 帳戶分類」設為「資產」，否則不會被計入總資產。
+- [ ] 集保 PDF 的券商／帳號辨識是用內文正則（`帳號`、`○○證券`）盡力抓，抓不到時改用「持股代號重疊率 ≥ 60%」判斷是否為同一來源的更新版；若實際版面辨識不到來源，重複上傳的提醒可能會漏判，屆時把 `/finance/stock-pdf-test.html` 印出的原始文字提供出來調整規則。
+- [ ] 結帳檢查清單固定看「本月」（`DateTime.Today` 的年月）。若習慣是「每月 N 號結上個月的帳」，清單月份會對不上，需改為依結帳日推算目標月份或加月份切換，尚未決定。
+- [ ] 資料清理：`FIN.BankAccount` 有一筆「台新銀行」且 `AccountName` 為空字串、餘額 0 的髒資料（來源疑似某次 CSV 空列），會出現在資產統計的「未分類」提醒中，待確認來源後清除。
 - [ ] car 模組保養分類（2026-08-03 新增）：建議保養週期只會納入分類名稱**完全等於**「例行」「保養」的紀錄，需使用者自行在「保養分類」頁籤建立這兩個分類（系統不會自動 seed）；歷史上沒設分類的舊保養紀錄也不會被納入建議計算，除非事後手動補分類（目前無批次補分類的功能，需要的話可再開發）。
 
 ---

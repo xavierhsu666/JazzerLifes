@@ -884,9 +884,11 @@ class FinanceApp {
 
             case "upload-detail":
                 this.bindUploadEvents();
+                this.loadMonthlyChecklist("#uploadChecklistDetail");
                 break;
             case "upload-tdcc":
                 this.bindTdccUploadEvents();
+                this.loadMonthlyChecklist("#uploadChecklistTdcc");
                 break;
             case "settings-general":
                 this.bindGeneralSettingsEvents();
@@ -1170,6 +1172,7 @@ class FinanceApp {
                 // 上傳的月份以 PDF 的快照日為準，可能和畫面選的月份不同，直接跟著切過去
                 if (res.yearMonth) $("#tdccMonth").val(res.yearMonth);
                 self.loadTdccImports();
+                self.loadMonthlyChecklist("#uploadChecklistTdcc");
             });
         });
 
@@ -1267,6 +1270,7 @@ class FinanceApp {
             success: function (res) {
                 showMessage(res.message || "結算完成", "success");
                 self.loadTdccImports();
+                self.loadMonthlyChecklist("#uploadChecklistTdcc");
             },
             error: function (xhr) {
                 const res = xhr.responseJSON || {};
@@ -1297,6 +1301,56 @@ class FinanceApp {
             .fail(function () {
                 $("#tdccPasswordHint").text("");
             });
+    }
+
+    /**
+     * 每月結帳檢查清單（麻布資料／集保存摺兩個上傳頁共用）
+     *
+     * 兩頁各有一個容器，所以用選擇器參數指定要塞哪一個；資料一律看「本月」，
+     * 因為結帳就是在處理當月的資料，要看其他月份可到集保存摺頁切月份看清單。
+     */
+    loadMonthlyChecklist(containerSelector) {
+        const $container = $(containerSelector);
+        if ($container.length === 0) return;
+
+        $.get("/api/finance/monthly-checklist").done(function (data) {
+            const items = (data.items || []).map(function (item) {
+                const icon = item.done ? "✅" : "⬜";
+                const color = item.done ? "#4caf50" : "#ffb545";
+                return `<div><span style="color:${color};">${icon} ${item.label}</span>` +
+                    `<span style="color:#888;">－${item.detail}</span></div>`;
+            }).join("");
+
+            const pending = (data.items || []).filter((i) => !i.done).length;
+
+            let header;
+            if (data.closingDay == null) {
+                header = `${data.yearMonth}（尚未設定結帳日，可到「設定 › 一般設定」設定）`;
+            } else if (data.daysUntilClosing > 0) {
+                header = `${data.yearMonth}　結帳日 ${data.closingDay} 號，還有 ${data.daysUntilClosing} 天`;
+            } else if (data.daysUntilClosing === 0) {
+                header = `${data.yearMonth}　今天就是結帳日（${data.closingDay} 號）`;
+            } else {
+                header = `${data.yearMonth}　已過結帳日 ${Math.abs(data.daysUntilClosing)} 天`;
+            }
+
+            const summary = pending === 0
+                ? '<span style="color:#4caf50;">全部完成 🎉</span>'
+                : `<span style="color:#ffb545;">還有 ${pending} 項未完成</span>`;
+
+            // 已過結帳日又還沒做完，才用紅色框強調，平時不要一直跳警告
+            const overdue = data.closingDay != null && data.daysUntilClosing < 0 && pending > 0;
+            $container.css({
+                border: overdue ? "1px solid #ff5722" : "",
+                "border-radius": overdue ? "8px" : "",
+            });
+
+            $container.find(".checklist-body").html(
+                `<div style="margin-bottom:6px;">${header}｜${summary}</div>` + items
+            );
+        }).fail(function () {
+            $container.find(".checklist-body").text("檢查清單載入失敗");
+        });
     }
 
     /** 一般設定：集保 PDF 密碼的儲存／清除 */
@@ -1351,6 +1405,48 @@ class FinanceApp {
             if (!confirm("確定要清除已儲存的集保 PDF 密碼？之後上傳需自行輸入。")) return;
             save("");
         });
+
+        function showClosingMessage(msg, type) {
+            const div = $('<div class="message ' + type + '"></div>');
+            div.text(msg);
+            $("#generalClosingDayMessage").prepend(div);
+            setTimeout(function () {
+                div.fadeOut(function () {
+                    $(this).remove();
+                });
+            }, 5000);
+        }
+
+        function saveClosingDay(day) {
+            $.ajax({
+                url: "/api/finance/settings/closing-day",
+                type: "PUT",
+                contentType: "application/json",
+                data: JSON.stringify({ day: day }),
+                success: function (res) {
+                    showClosingMessage(res.message || "已儲存", "success");
+                    self.refreshGeneralSettings();
+                },
+                error: function (xhr) {
+                    const msg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : "儲存失敗";
+                    showClosingMessage(msg, "error");
+                },
+            });
+        }
+
+        $("#generalClosingDaySaveBtn").off("click").on("click", function () {
+            const day = parseInt($("#generalClosingDay").val(), 10);
+            if (!day || day < 1 || day > 28) {
+                showClosingMessage("請輸入 1~28 之間的日期", "error");
+                return;
+            }
+            saveClosingDay(day);
+        });
+
+        $("#generalClosingDayClearBtn").off("click").on("click", function () {
+            if (!confirm("確定要清除結帳日設定？上傳頁將不再顯示結帳日倒數。")) return;
+            saveClosingDay(null);
+        });
     }
 
     refreshGeneralSettings() {
@@ -1361,6 +1457,14 @@ class FinanceApp {
                     $("#generalTdccStatus").text("目前狀態：已儲存密碼" + (updatedAt ? "（最後更新 " + updatedAt + "）" : ""));
                 } else {
                     $("#generalTdccStatus").text("目前狀態：尚未儲存密碼");
+                }
+
+                if (data.ClosingDay) {
+                    $("#generalClosingDayStatus").text("目前狀態：每月 " + data.ClosingDay + " 日結帳");
+                    $("#generalClosingDay").val(data.ClosingDay);
+                } else {
+                    $("#generalClosingDayStatus").text("目前狀態：尚未設定結帳日");
+                    $("#generalClosingDay").val("");
                 }
             })
             .fail(function () {

@@ -615,6 +615,11 @@
 		<h2 class="view-title">麻布資料</h2>
 	  </div>
 
+		<div class="view-actions upload-section" id="uploadChecklistDetail" style="margin-bottom:16px;">
+		  <h3 style="font-size:15px; margin:0 0 8px;">本月結帳檢查</h3>
+		  <div class="checklist-body" style="color:#b0b0b0; font-size:13px; line-height:2;"></div>
+		</div>
+
 	  <div class="view-actions upload-section">
 		<div>
 		  <label style="display:block; margin-bottom:8px; color:#b0b0b0;">快照日期</label>
@@ -649,6 +654,11 @@
 		  </label>
 		</div>
 	  </div>
+
+		<div class="view-actions upload-section" id="uploadChecklistTdcc" style="margin-bottom:16px;">
+		  <h3 style="font-size:15px; margin:0 0 8px;">本月結帳檢查</h3>
+		  <div class="checklist-body" style="color:#b0b0b0; font-size:13px; line-height:2;"></div>
+		</div>
 
 	  <div class="view-actions upload-section">
 		<p style="color:#b0b0b0; font-size:13px; line-height:1.7; margin-top:0;">
@@ -787,6 +797,19 @@
             <button class="btn btn-danger" id="generalTdccClearBtn">清除已儲存密碼</button>
           </div>
           <div id="generalTdccMessage"></div>
+
+          <h3 style="margin:24px 0 4px; font-size:15px;">每月結帳日</h3>
+          <p style="color:#b0b0b0; font-size:13px; line-height:1.7; margin-top:0;">
+            設定每月的結帳日（1~28）。上傳頁會依這個日期提醒你當月的結帳項目是否都完成。
+            設 29 之後的日期在二月會不存在，因此只收 1~28。
+          </p>
+          <div id="generalClosingDayStatus" style="color:#b0b0b0; font-size:13px; margin-bottom:12px;"></div>
+          <input type="number" id="generalClosingDay" min="1" max="28" step="1" placeholder="例如 5" style="width:100%; padding:12px; background-color:#2a2a2a; border:1px solid #757575; border-radius:8px; color:#fff; font-size:14px;">
+          <div class="button-group">
+            <button class="btn btn-primary" id="generalClosingDaySaveBtn">儲存結帳日</button>
+            <button class="btn btn-danger" id="generalClosingDayClearBtn">清除設定</button>
+          </div>
+          <div id="generalClosingDayMessage"></div>
         </div>
       </section>
       <section class="content-view hidden" id="view-portfolio-overview" data-view="portfolio-overview">

@@ -11,6 +11,7 @@
 | SettingKey | 用途 | 是否加密 |
 |---|---|---|
 | `tdcc.pdf.password` | 集保存摺 PDF 開啟密碼 | 是 |
+| `finance.closing.day` | 每月結帳日（1~28，超過 28 的日期在二月不存在故不收） | 否 |
 
 ## 二、欄位定義
 
@@ -45,6 +46,8 @@ API：
 |---|---|---|
 | GET | `/api/finance/settings` | 回傳 `TdccPasswordSaved`（布林）與 `TdccPasswordUpdatedAt`，**不回傳密碼本身** |
 | PUT | `/api/finance/settings/tdcc-password` | body `{ "password": "..." }` 儲存；傳空字串則刪除該筆設定 |
+| PUT | `/api/finance/settings/closing-day` | body `{ "day": 5 }` 儲存；傳 `null` 則刪除該筆設定 |
+| GET | `/api/finance/monthly-checklist?month=yyyy-MM` | 當月結帳檢查清單：麻布明細／麻布帳戶餘額／集保存摺上傳／集保結算四項的完成狀態，含結帳日倒數天數 |
 
 ## 四、密碼加密方式（重要）
 
