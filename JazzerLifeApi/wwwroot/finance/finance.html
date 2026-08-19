@@ -128,6 +128,7 @@
       <section class="content-view" id="view-asset-trend" data-view="asset-trend">
         <div class="view-header">
           <h2 class="view-title">總資產走勢</h2>
+          <p class="view-subtitle" id="assetCategoryHint"></p>
         </div>
 
         <!-- 圖表容器 -->
@@ -745,7 +746,7 @@
       <section class="content-view hidden" id="view-account-category" data-view="account-category">
         <div class="view-header">
           <h2 class="view-title">帳戶分類</h2>
-          <p class="view-subtitle">把「銀行＋帳戶」對應到自訂分類（例如：手動新增＋新豐 -&gt; 資產），可在「總覽 › 資產」頁面看到依分類的資產分布。</p>
+          <p class="view-subtitle">把「銀行＋帳戶」對應到自訂分類（例如：手動新增＋新豐 -&gt; 資產），可在「總覽 › 資產」頁面看到依分類的資產分布。<br><strong>備註：只有分類名稱含「資產」或「負債」的帳戶會被納入總資產／總負債／淨資產的計算</strong>（含「負債」者計為負債；含「忽視／忽略／不計入／排除」者視為刻意排除，不會跳提醒；其餘分類與未分類的帳戶不計入且會在總覽提醒）。</p>
         </div>
         <div class="table-container">
           <div id="account_category_grid" class="ag-theme-quartz-dark"></div>

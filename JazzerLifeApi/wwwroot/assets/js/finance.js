@@ -1714,6 +1714,10 @@ class FinanceApp {
                         NetAssets: curMonData.find((x) => x.Type == "NetAssets")?.total || 0,
                         Assets: curMonData.find((x) => x.Type == "Assets")?.total || 0,
                         Debt: curMonData.find((x) => x.Type == "Debt")?.total || 0,
+                        UnclassifiedCount: curMonData.find((x) => x.Type == "UnclassifiedCount")?.total || 0,
+                        UnclassifiedAmount: curMonData.find((x) => x.Type == "UnclassifiedAmount")?.total || 0,
+                        ExcludedCount: curMonData.find((x) => x.Type == "ExcludedCount")?.total || 0,
+                        ExcludedAmount: curMonData.find((x) => x.Type == "ExcludedAmount")?.total || 0,
                         Time: currentMonth,
                     };
                     selfObj.state.financialData.lastMonth = {
@@ -1797,8 +1801,10 @@ class FinanceApp {
             <p class="stat-description">相較去年同期 (${lastYearSameMonth["Time"]})</p>
         `;
 
-                // 「本月資產結餘」卡片：只留結餘金額與資產/負債大小關係，不再列資產/負債個別金額
-                var balance = currentMonth.Assets - currentMonth.Debt;
+                // 「本月資產結餘」卡片：只留結餘金額與資產/負債大小關係，不再列資產/負債個別金額。
+                // Debt 由 API 回傳時已經是負值，所以是相加而不是相減（原本寫成 Assets - Debt，
+                // 等於把負債金額又加了一次，結餘永遠為正、狀態文字也永遠顯示「資產 > 負債」）
+                var balance = currentMonth.Assets + currentMonth.Debt;
                 var balanceClass = balance >= 0 ? "positive" : "negative";
                 var balanceText = balance >= 0 ? "資產 > 負債" : "負債 > 資產";
 
@@ -1806,6 +1812,39 @@ class FinanceApp {
             <span class="stat-amount">結餘 ${balance >= 0 ? "+" : ""}${self.formatAxisCurrency(balance)}</span>
             <span class="stat-percentage ${balanceClass}">${balanceText}</span>
         `;
+
+                // 資產／負債改以帳戶分類判定，沒設定分類的帳戶不會被計入，這裡明講筆數與金額，
+                // 免得使用者以為數字憑空少了一塊
+                // 分成兩種：分類為「忽視」是使用者刻意不計入（例如被集保庫存取代的舊帳），只做中性說明；
+                // 真正需要提醒的是沒設分類、或分類名稱看不出資產/負債的帳戶
+                var unclassifiedCount = currentMonth.UnclassifiedCount || 0;
+                var excludedCount = currentMonth.ExcludedCount || 0;
+                var baseText = "統計依「設定 › 帳戶分類」歸類：分類名稱含「資產」計入總資產、含「負債」計入總負債。";
+                var excludedText = excludedCount > 0
+                    ? `另有 ${excludedCount} 個帳戶分類為忽視（餘額合計 ${self.formatAxisCurrency(currentMonth.ExcludedAmount || 0)}），依設定不計入。`
+                    : "";
+
+                if (unclassifiedCount === 0) {
+                    $("#assetCategoryHint").text(baseText + excludedText);
+                } else {
+                    // 只講「N 個未計入」很難查，另外撈一次清單，把分類名稱也列出來，
+                    // 才分得出是「完全沒設分類」還是「分類名稱不含資產/負債」
+                    $("#assetCategoryHint").text(
+                        `⚠ ${currentMonth.Time} 有 ${unclassifiedCount} 個帳戶未歸類，未計入統計。` + excludedText
+                    );
+                    $.get("/api/finance/overview/uncounted", { month: currentMonth.Time }).done(function (res) {
+                        var breakdown = (res.byCategory || [])
+                            .map((c) => `${c.category} ${c.count} 筆`)
+                            .join("、");
+                        var excluded = res.excludedCount > 0
+                            ? `另有 ${res.excludedCount} 個帳戶分類為忽視（${self.formatAxisCurrency(res.excludedBalance || 0)}），依設定不計入。`
+                            : "";
+                        $("#assetCategoryHint").html(
+                            `⚠ ${res.yearMonth} 有 ${res.count} 個帳戶未計入統計（餘額合計 ${self.formatAxisCurrency(res.totalBalance || 0)}）：${breakdown}。` +
+                            `請到「設定 › 帳戶分類」補上分類。<br>${excluded}`
+                        );
+                    });
+                }
                 break;
             }
             case "cash-flow": {
