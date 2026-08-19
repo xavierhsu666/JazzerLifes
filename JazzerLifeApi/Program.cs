@@ -1,4 +1,5 @@
-using JazzerLifeApi;
+﻿using JazzerLifeApi;
+using Microsoft.AspNetCore.DataProtection;
 using JazzerLifeApi.Models;
 using Microsoft.EntityFrameworkCore;
 using Hangfire;
@@ -19,6 +20,16 @@ builder.Services.AddDbContext<JazzerLifeContext>(options =>
 builder.Services.AddHangfire(config => config
 	.UseSqlServerStorage(builder.Configuration.GetConnectionString("JazzerLife")));
 builder.Services.AddHangfireServer();
+// Data Protection：集保 PDF 密碼等敏感設定用它加密後才寫進 FIN.UserSetting。
+// 金鑰預設會存到使用者設定檔目錄，但 IIS App Pool 常常沒有載入使用者設定檔，
+// 那樣金鑰只留在記憶體，重啟後舊密文就解不開；因此明確落地到 ContentRoot\App_Data\keys
+// （可用 appsettings.json 的 DataProtection:KeysPath 覆寫），該資料夾需給 App Pool 寫入權限。
+var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"]
+	?? Path.Combine(builder.Environment.ContentRootPath, "App_Data", "keys");
+Directory.CreateDirectory(dataProtectionKeysPath);
+builder.Services.AddDataProtection()
+	.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath))
+	.SetApplicationName("JazzerLife");
 builder.Services.AddScoped<EconDataSyncRunner>();
 builder.Services.AddAuthentication(Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme)
 	.AddCookie(options =>
@@ -69,6 +80,8 @@ app.MapCycleEndpoints();
 app.MapPartCategoryEndpoints();
 app.MapFinanceOverviewEndpoints();
 app.MapFinanceUploadEndpoints();
+app.MapFinanceStockPdfEndpoints();
+app.MapFinanceSettingEndpoints();
 app.MapFinanceDetailEndpoints();
 app.MapFinanceAutoRuleEndpoints();
 app.MapFinanceProjectEndpoints();

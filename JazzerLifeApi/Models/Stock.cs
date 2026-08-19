@@ -28,4 +28,7 @@ public partial class Stock
     public DateTime? UpdatedAt { get; set; }
 
     public string? Activate { get; set; }
+
+    /// <summary>由哪一次集保 PDF 匯入寫入（FIN.StockPdfImport.ImportID）；CSV 匯入或舊資料為 null。</summary>
+    public int? ImportId { get; set; }
 }

@@ -8,3 +8,6 @@ obj/
 JazzerLifeApi/appsettings.json
 
 JazzerLifeApi/appsettings.Development.json
+
+# Data Protection 金鑰（各機器自己產生，不進版控）
+App_Data/

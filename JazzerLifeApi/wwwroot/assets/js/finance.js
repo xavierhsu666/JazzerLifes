@@ -439,7 +439,10 @@ class FinanceApp {
                 { id: "auto-rule", label: "自動分類規則" },
                 { id: "settings-general", label: "一般設定" },
             ],
-            upload: [{ id: "upload-detail", label: "麻布資料" }],
+            upload: [
+                { id: "upload-detail", label: "麻布資料" },
+                { id: "upload-tdcc", label: "集保存摺" },
+            ],
         };
 
         this.init();
@@ -882,6 +885,12 @@ class FinanceApp {
             case "upload-detail":
                 this.bindUploadEvents();
                 break;
+            case "upload-tdcc":
+                this.bindTdccUploadEvents();
+                break;
+            case "settings-general":
+                this.bindGeneralSettingsEvents();
+                break;
             case "asset-trend":
                 $("#assetTrendChart").empty();
                 selfObj.load_data("assets").then(function () {
@@ -970,6 +979,393 @@ class FinanceApp {
             }, 100);
         }
         this.bindEvents_by_view(viewId);
+    }
+
+    /**
+     * 集保存摺 PDF 月結流程（上傳多份 → 結算成一筆帳戶）
+     *
+     * 與麻布 CSV 上傳分開寫，不共用 bindUploadEvents：
+     * 集保是單檔逐份上傳、要帶密碼、還多了「已上傳清單 + 結算」的狀態，塞進去只會把原本的多檔邏輯弄複雜。
+     */
+    bindTdccUploadEvents() {
+        const self = this;
+
+        if (!$("#tdccMonth").val()) {
+            // 日期用字串截取而非 new Date().toISOString()，避免時區換算讓月份在月初/月底跳掉
+            const now = new Date();
+            $("#tdccMonth").val(now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0"));
+        }
+
+        this.refreshTdccPasswordHint();
+        this.loadTdccImports();
+
+        if (this._tdccBound) {
+            return;
+        }
+        this._tdccBound = true;
+
+        let selectedFile = null;
+        let isBusy = false;
+
+        function showMessage(msg, type) {
+            const div = $('<div class="message ' + type + '"></div>');
+            div.text(msg);
+            $("#tdcc-message-area").prepend(div);
+            setTimeout(function () {
+                div.fadeOut(function () {
+                    $(this).remove();
+                });
+            }, 8000);
+        }
+
+        function setFile(file) {
+            if (!file) return;
+            if (!/\.pdf$/i.test(file.name)) {
+                showMessage("只接受 PDF 檔", "error");
+                return;
+            }
+            if (file.size > 10 * 1024 * 1024) {
+                showMessage('檔案 "' + file.name + '" 超過大小上限 (10MB)', "error");
+                return;
+            }
+            selectedFile = file;
+            $("#tdcc-file-list").html(
+                '<div class="file-item"><div style="flex:1;"><strong>' + file.name + "</strong><br><small>大小: " +
+                (file.size / 1024).toFixed(1) + " KB</small></div></div>"
+            );
+        }
+
+        function clearSelection() {
+            selectedFile = null;
+            $("#tdcc-file-input").val("");
+            $("#tdcc-file-list").empty();
+            $("#tdcc-result-wrap").hide();
+            $("#tdcc-result-table tbody").empty();
+        }
+
+        $("#tdcc-upload-area").off("click").on("click", function () {
+            if (!isBusy) $("#tdcc-file-input").click();
+        });
+
+        $("#tdcc-file-input").off("change").on("change", function (e) {
+            setFile(e.target.files[0]);
+        });
+
+        $("#tdcc-upload-area").off("dragover").on("dragover", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!isBusy) $(this).addClass("dragover");
+        });
+
+        $("#tdcc-upload-area").off("dragleave").on("dragleave", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            $(this).removeClass("dragover");
+        });
+
+        $("#tdcc-upload-area").off("drop").on("drop", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            $(this).removeClass("dragover");
+            if (!isBusy) setFile(e.originalEvent.dataTransfer.files[0]);
+        });
+
+        $("#tdcc-clear-btn").off("click").on("click", function () {
+            if (!isBusy) clearSelection();
+        });
+
+        $("#tdccMonth").off("change").on("change", function () {
+            self.loadTdccImports();
+        });
+
+        function renderPreviewRows(rows) {
+            const cell = 'padding:8px; border-bottom:1px solid #333;';
+            const body = (rows || []).map(function (r) {
+                function num(v) {
+                    return v === null || v === undefined ? "" : Number(v).toLocaleString("zh-TW", { maximumFractionDigits: 4 });
+                }
+                return "<tr>" +
+                    '<td style="' + cell + '">' + r.Code + "</td>" +
+                    '<td style="' + cell + '">' + r.Name + "</td>" +
+                    '<td style="' + cell + ' text-align:right;">' + num(r.Unit) + "</td>" +
+                    '<td style="' + cell + ' text-align:right;">' + num(r.Price) + "</td>" +
+                    '<td style="' + cell + ' text-align:right;">' + num(r.MarketValue) + "</td>" +
+                    "</tr>";
+            }).join("");
+            $("#tdcc-result-table tbody").html(body);
+            $("#tdcc-result-wrap").toggle((rows || []).length > 0);
+        }
+
+        function buildFormData(replaceImportId) {
+            const fd = new FormData();
+            fd.append("file", selectedFile);
+            fd.append("password", $("#tdccPassword").val() || "");
+            // 快照日期不讓使用者填：一律用 PDF 上的收盤價日期，避免多份存摺被歸到不同月份
+            if (replaceImportId) fd.append("replaceImportId", replaceImportId);
+            return fd;
+        }
+
+        function send(url, replaceImportId, okHandler) {
+            if (!selectedFile) {
+                showMessage("請先選擇 PDF 檔案", "error");
+                return;
+            }
+            if (isBusy) return;
+            isBusy = true;
+            $("#tdcc-preview-btn, #tdcc-import-btn").prop("disabled", true);
+
+            $.ajax({
+                url: url,
+                type: "POST",
+                data: buildFormData(replaceImportId),
+                processData: false,
+                contentType: false,
+                success: function (res) {
+                    (res.warnings || res.Warnings || []).forEach(function (w) {
+                        showMessage("⚠ " + w, "error");
+                    });
+                    okHandler(res);
+                },
+                error: function (xhr) {
+                    const res = xhr.responseJSON || {};
+                    // 同來源的存摺重複上傳：問過使用者才以新檔取代舊的（其餘重複情形一律直接擋掉）
+                    if (xhr.status === 409 && res.code === "SAME_SOURCE") {
+                        if (confirm(res.message)) {
+                            isBusy = false;
+                            $("#tdcc-preview-btn, #tdcc-import-btn").prop("disabled", false);
+                            send(url, res.importId, okHandler);
+                            return;
+                        }
+                        showMessage("已取消，未寫入", "info");
+                        return;
+                    }
+                    showMessage(res.message || "處理失敗", "error");
+                },
+                complete: function () {
+                    isBusy = false;
+                    $("#tdcc-preview-btn, #tdcc-import-btn").prop("disabled", false);
+                },
+            });
+        }
+
+        $("#tdcc-preview-btn").off("click").on("click", function () {
+            send("/api/finance/stock-pdf/preview", 0, function (res) {
+                renderPreviewRows(res.Rows);
+                showMessage(
+                    "辨識完成，共 " + (res.Rows || []).length + " 筆" +
+                    (res.DetectedSource ? "（來源：" + res.DetectedSource + "）" : "") + "，尚未寫入資料庫",
+                    "success"
+                );
+            });
+        });
+
+        $("#tdcc-import-btn").off("click").on("click", function () {
+            send("/api/finance/stock-pdf/import", 0, function (res) {
+                renderPreviewRows(res.rows);
+                showMessage(res.message || "寫入完成", "success");
+                if (res.needsResettle) {
+                    showMessage("當月已結算過，庫存有變動，請重新結算", "error");
+                }
+                clearSelection();
+                // 上傳的月份以 PDF 的快照日為準，可能和畫面選的月份不同，直接跟著切過去
+                if (res.yearMonth) $("#tdccMonth").val(res.yearMonth);
+                self.loadTdccImports();
+            });
+        });
+
+        $("#tdcc-settle-btn").off("click").on("click", function () {
+            self.settleTdccMonth(false);
+        });
+
+        // 刪除單筆匯入用事件委派，因為清單是每次重新載入後動態產生的
+        $("#tdcc-import-table").off("click", ".tdcc-delete-import").on("click", ".tdcc-delete-import", function () {
+            const importId = $(this).data("import-id");
+            const fileName = $(this).data("file-name");
+            if (!confirm("確定刪除「" + fileName + "」？這份存摺寫入的庫存也會一併刪除。")) return;
+
+            $.ajax({
+                url: "/api/finance/stock-pdf/imports/" + importId,
+                type: "DELETE",
+                success: function (res) {
+                    showMessage(res.message || "已刪除", "success");
+                    self.loadTdccImports();
+                },
+                error: function (xhr) {
+                    const msg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : "刪除失敗";
+                    showMessage(msg, "error");
+                },
+            });
+        });
+    }
+
+    /** 載入當月已上傳的存摺清單與結算狀態 */
+    loadTdccImports() {
+        const month = $("#tdccMonth").val();
+        $("#tdccListMonth").text(month || "");
+
+        $.get("/api/finance/stock-pdf/imports", { month: month }).done(function (data) {
+            const cell = 'padding:8px; border-bottom:1px solid #333;';
+            const rows = data.imports || [];
+
+            $("#tdcc-import-table tbody").html(
+                rows.length === 0
+                    ? '<tr><td colspan="7" style="' + cell + ' color:#888;">本月尚未上傳任何存摺</td></tr>'
+                    : rows.map(function (i) {
+                        return "<tr>" +
+                            '<td style="' + cell + '">' + i.FileName + "</td>" +
+                            '<td style="' + cell + '">' + (i.SourceKey || i.OrganizationName || "") + "</td>" +
+                            '<td style="' + cell + '">' + i.SnapshotDate + "</td>" +
+                            '<td style="' + cell + ' text-align:right;">' + i.StockCount + "</td>" +
+                            '<td style="' + cell + ' text-align:right;">' + Number(i.TotalMarketValue).toLocaleString("zh-TW") + "</td>" +
+                            '<td style="' + cell + '">' + (i.SettlementId ? "已結算" : "未結算") + "</td>" +
+                            '<td style="' + cell + '"><button class="btn btn-danger tdcc-delete-import" data-import-id="' + i.ImportId +
+                            '" data-file-name="' + i.FileName + '">刪除</button></td>' +
+                            "</tr>";
+                    }).join("")
+            );
+
+            let status = "合計 " + rows.length + " 份、市值 " +
+                Number(data.totalMarketValue || 0).toLocaleString("zh-TW");
+
+            if (data.settlement) {
+                status += "｜已於 " + String(data.settlement.SettledAt).replace("T", " ").slice(0, 16) +
+                    " 結算，寫入帳戶「" + data.settlement.AccountName + "」市值 " +
+                    Number(data.settlement.TotalMarketValue).toLocaleString("zh-TW");
+                $("#tdcc-settle-btn").text("重新結算本月");
+            } else {
+                status += "｜尚未結算";
+                $("#tdcc-settle-btn").text("結算本月");
+            }
+            if (data.needsResettle) {
+                status += "⚠ 結算後庫存有異動，請重新結算";
+            }
+            $("#tdccSettlementStatus").text(status);
+        });
+    }
+
+    /** 當月結算：force=true 代表使用者已確認要覆蓋既有結算 */
+    settleTdccMonth(force) {
+        const self = this;
+        const month = $("#tdccMonth").val();
+
+        function showMessage(msg, type) {
+            const div = $('<div class="message ' + type + '"></div>');
+            div.text(msg);
+            $("#tdcc-settle-message").prepend(div);
+            setTimeout(function () {
+                div.fadeOut(function () {
+                    $(this).remove();
+                });
+            }, 8000);
+        }
+
+        $.ajax({
+            url: "/api/finance/stock-pdf/settle",
+            type: "POST",
+            contentType: "application/json",
+            data: JSON.stringify({ month: month, force: !!force }),
+            success: function (res) {
+                showMessage(res.message || "結算完成", "success");
+                self.loadTdccImports();
+            },
+            error: function (xhr) {
+                const res = xhr.responseJSON || {};
+                // 同月重複結算預設擋下，確認後才帶 force 覆蓋
+                if (xhr.status === 409 && res.code === "ALREADY_SETTLED") {
+                    if (confirm(res.message)) {
+                        self.settleTdccMonth(true);
+                        return;
+                    }
+                    showMessage("已取消，未重新結算", "info");
+                    return;
+                }
+                showMessage(res.message || "結算失敗", "error");
+            },
+        });
+    }
+
+    /** 顯示「是否已儲存集保 PDF 密碼」，讓使用者知道可以不用填密碼欄 */
+    refreshTdccPasswordHint() {
+        $.get("/api/finance/settings")
+            .done(function (data) {
+                $("#tdccPasswordHint").html(
+                    data.TdccPasswordSaved
+                        ? "🔐 已使用「設定 → 一般設定」儲存的密碼，密碼欄可留空。"
+                        : "🔓 尚未儲存密碼。若 PDF 有加密，請在下方填入，或到「設定 → 一般設定」存起來免得每次都輸入。"
+                );
+            })
+            .fail(function () {
+                $("#tdccPasswordHint").text("");
+            });
+    }
+
+    /** 一般設定：集保 PDF 密碼的儲存／清除 */
+    bindGeneralSettingsEvents() {
+        const self = this;
+        this.refreshGeneralSettings();
+
+        if (this._generalSettingsBound) {
+            return;
+        }
+        this._generalSettingsBound = true;
+
+        function showMessage(msg, type) {
+            const div = $('<div class="message ' + type + '"></div>');
+            div.text(msg);
+            $("#generalTdccMessage").prepend(div);
+            setTimeout(function () {
+                div.fadeOut(function () {
+                    $(this).remove();
+                });
+            }, 5000);
+        }
+
+        function save(password) {
+            $.ajax({
+                url: "/api/finance/settings/tdcc-password",
+                type: "PUT",
+                contentType: "application/json",
+                data: JSON.stringify({ password: password }),
+                success: function (res) {
+                    showMessage(res.message || "已儲存", "success");
+                    $("#generalTdccPassword").val("");
+                    self.refreshGeneralSettings();
+                },
+                error: function (xhr) {
+                    const msg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : "儲存失敗";
+                    showMessage(msg, "error");
+                },
+            });
+        }
+
+        $("#generalTdccSaveBtn").off("click").on("click", function () {
+            const password = $("#generalTdccPassword").val();
+            if (!password) {
+                showMessage("請先輸入密碼", "error");
+                return;
+            }
+            save(password);
+        });
+
+        $("#generalTdccClearBtn").off("click").on("click", function () {
+            if (!confirm("確定要清除已儲存的集保 PDF 密碼？之後上傳需自行輸入。")) return;
+            save("");
+        });
+    }
+
+    refreshGeneralSettings() {
+        $.get("/api/finance/settings")
+            .done(function (data) {
+                if (data.TdccPasswordSaved) {
+                    const updatedAt = data.TdccPasswordUpdatedAt ? String(data.TdccPasswordUpdatedAt).slice(0, 10) : "";
+                    $("#generalTdccStatus").text("目前狀態：已儲存密碼" + (updatedAt ? "（最後更新 " + updatedAt + "）" : ""));
+                } else {
+                    $("#generalTdccStatus").text("目前狀態：尚未儲存密碼");
+                }
+            })
+            .fail(function () {
+                $("#generalTdccStatus").text("目前狀態：讀取失敗");
+            });
     }
 
     bindUploadEvents() {

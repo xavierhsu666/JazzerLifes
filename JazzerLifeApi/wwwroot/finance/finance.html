@@ -637,6 +637,90 @@
 		<div id="message-area"></div>
 	  </div>
 	</section>
+	<!-- 上傳 - 集保存摺 -->
+	<section class="content-view hidden" id="view-upload-tdcc" data-view="upload-tdcc">
+	  <div class="view-header">
+		<h2 class="view-title">集保存摺</h2>
+		<div class="view-actions">
+		  <label class="sort-control">
+			<span class="sort-label">結帳月份</span>
+			<input type="month" id="tdccMonth" style="padding:8px; background-color:#2a2a2a; border:1px solid #757575; border-radius:8px; color:#fff; font-size:14px;">
+		  </label>
+		</div>
+	  </div>
+
+	  <div class="view-actions upload-section">
+		<p style="color:#b0b0b0; font-size:13px; line-height:1.7; margin-top:0;">
+		  每月結帳流程：① 逐份上傳股票庫存 PDF → ② 確認下方清單無誤 → ③ 按「結算」把當月所有庫存合併成一筆帳戶（集保／集保庫存）供資產管理使用。<br>
+		  機構與帳戶名稱直接從 PDF 內容辨識，不用手動填；重複的檔案與已結算的月份都會擋下。
+		  集保<strong>沒有成本資料</strong>，成本沿用同一檔股票先前的紀錄。
+		</p>
+
+		<div id="tdccPasswordHint" style="color:#b0b0b0; font-size:13px; margin-bottom:12px;"></div>
+
+		<label style="display:block; margin-bottom:8px; color:#b0b0b0;">PDF 密碼（留空則使用「設定 → 一般設定」儲存的密碼）</label>
+		<input type="password" id="tdccPassword" autocomplete="off" placeholder="這次要用不同密碼時才填" style="width:100%; padding:12px; background-color:#2a2a2a; border:1px solid #757575; border-radius:8px; color:#fff; font-size:14px;">
+
+		<div class="upload-area" id="tdcc-upload-area" style="margin-top:12px;">
+		  <p>點擊選擇檔案或拖放檔案到此處</p>
+		  <p style="font-size: 12px; color: #666;">單一 PDF 檔（10MB 以內），多份請逐一上傳</p>
+		</div>
+
+		<input type="file" id="tdcc-file-input" accept=".pdf">
+		<div class="file-list" id="tdcc-file-list"></div>
+
+		<div class="button-group">
+		  <button class="btn btn-secondary" id="tdcc-preview-btn">辨識預覽</button>
+		  <button class="btn btn-primary" id="tdcc-import-btn">上傳這一份</button>
+		  <button class="btn btn-danger" id="tdcc-clear-btn">清除選擇</button>
+		</div>
+
+		<div id="tdcc-message-area"></div>
+
+		<div class="table-container" id="tdcc-result-wrap" style="display:none; overflow-x:auto; margin-top:12px;">
+		  <h3 style="font-size:14px; margin:0 0 8px;">辨識預覽（尚未寫入）</h3>
+		  <table id="tdcc-result-table" style="width:100%; border-collapse:collapse; font-size:13px; min-width:560px;">
+			<thead>
+			  <tr style="color:#b0b0b0; text-align:left;">
+				<th style="padding:8px; border-bottom:1px solid #444;">代號</th>
+				<th style="padding:8px; border-bottom:1px solid #444;">名稱</th>
+				<th style="padding:8px; border-bottom:1px solid #444; text-align:right;">股數</th>
+				<th style="padding:8px; border-bottom:1px solid #444; text-align:right;">收盤價</th>
+				<th style="padding:8px; border-bottom:1px solid #444; text-align:right;">市值</th>
+			  </tr>
+			</thead>
+			<tbody></tbody>
+		  </table>
+		</div>
+	  </div>
+
+	  <div class="view-actions upload-section" style="margin-top:16px;">
+		<h3 style="font-size:15px; margin:0 0 8px;">本月已上傳（<span id="tdccListMonth"></span>）</h3>
+		<div id="tdccSettlementStatus" style="color:#b0b0b0; font-size:13px; margin-bottom:12px;"></div>
+
+		<div class="table-container" style="overflow-x:auto;">
+		  <table id="tdcc-import-table" style="width:100%; border-collapse:collapse; font-size:13px; min-width:640px;">
+			<thead>
+			  <tr style="color:#b0b0b0; text-align:left;">
+				<th style="padding:8px; border-bottom:1px solid #444;">檔名</th>
+				<th style="padding:8px; border-bottom:1px solid #444;">來源</th>
+				<th style="padding:8px; border-bottom:1px solid #444;">快照日</th>
+				<th style="padding:8px; border-bottom:1px solid #444; text-align:right;">檔數</th>
+				<th style="padding:8px; border-bottom:1px solid #444; text-align:right;">市值</th>
+				<th style="padding:8px; border-bottom:1px solid #444;">狀態</th>
+				<th style="padding:8px; border-bottom:1px solid #444;"></th>
+			  </tr>
+			</thead>
+			<tbody></tbody>
+		  </table>
+		</div>
+
+		<div class="button-group">
+		  <button class="btn btn-primary" id="tdcc-settle-btn">結算本月</button>
+		</div>
+		<div id="tdcc-settle-message"></div>
+	  </div>
+	</section>
       <!-- 存款帳戶 - 帳戶總攬 -->
       <section class="content-view hidden" id="view-account-list" data-view="account-list">
         <div class="view-header">
@@ -684,6 +768,26 @@
         <div id="autoRuleList" class="ar-rule-list"></div>
       </section>
       <!-- 投資組合 - 股票 -->
+      <!-- 設定 - 一般設定 -->
+      <section class="content-view hidden" id="view-settings-general" data-view="settings-general">
+        <div class="view-header">
+          <h2 class="view-title">一般設定</h2>
+        </div>
+        <div class="view-actions upload-section">
+          <h3 style="margin:0 0 4px; font-size:15px;">集保存摺 PDF 密碼</h3>
+          <p style="color:#b0b0b0; font-size:13px; line-height:1.7; margin-top:0;">
+            存起來之後，上傳集保 PDF 就不用每次輸入。密碼會加密後存在伺服器，
+            畫面與 API 都不會再把密碼顯示出來，只會顯示是否已設定。
+          </p>
+          <div id="generalTdccStatus" style="color:#b0b0b0; font-size:13px; margin-bottom:12px;"></div>
+          <input type="password" id="generalTdccPassword" autocomplete="new-password" placeholder="輸入集保 PDF 開啟密碼" style="width:100%; padding:12px; background-color:#2a2a2a; border:1px solid #757575; border-radius:8px; color:#fff; font-size:14px;">
+          <div class="button-group">
+            <button class="btn btn-primary" id="generalTdccSaveBtn">儲存密碼</button>
+            <button class="btn btn-danger" id="generalTdccClearBtn">清除已儲存密碼</button>
+          </div>
+          <div id="generalTdccMessage"></div>
+        </div>
+      </section>
       <section class="content-view hidden" id="view-portfolio-overview" data-view="portfolio-overview">
         <div class="view-header">
           <h2 class="view-title">投資組合</h2>

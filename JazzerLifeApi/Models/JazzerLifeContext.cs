@@ -69,7 +69,13 @@ public partial class JazzerLifeContext : DbContext
 
     public virtual DbSet<Stock> Stocks { get; set; }
 
+    public virtual DbSet<StockPdfImport> StockPdfImports { get; set; }
+
+    public virtual DbSet<StockSettlement> StockSettlements { get; set; }
+
     public virtual DbSet<StrategyTag> StrategyTags { get; set; }
+
+    public virtual DbSet<UserSetting> UserSettings { get; set; }
 
     public virtual DbSet<Trade> Trades { get; set; }
 
@@ -746,6 +752,52 @@ public partial class JazzerLifeContext : DbContext
             entity.Property(e => e.UnRealizedBenefitRatio).HasColumnType("decimal(5, 2)");
             entity.Property(e => e.UpdatedAt).HasColumnType("datetime");
             entity.Property(e => e.UserId).HasColumnName("UserID");
+            entity.Property(e => e.ImportId).HasColumnName("ImportID");
+        });
+
+        modelBuilder.Entity<StockPdfImport>(entity =>
+        {
+            entity.HasKey(e => e.ImportId).HasName("PK_StockPdfImport");
+
+            entity.ToTable("StockPdfImport", "FIN");
+
+            entity.HasIndex(e => new { e.UserId, e.FileHash }, "UQ_StockPdfImport_UserFile").IsUnique();
+
+            entity.Property(e => e.ImportId).HasColumnName("ImportID");
+            entity.Property(e => e.UserId).HasColumnName("UserID");
+            entity.Property(e => e.SettlementId).HasColumnName("SettlementID");
+            entity.Property(e => e.YearMonth).HasMaxLength(7).IsFixedLength();
+            entity.Property(e => e.FileName).HasMaxLength(260);
+            entity.Property(e => e.FileHash).HasMaxLength(64).IsFixedLength();
+            entity.Property(e => e.ContentHash).HasMaxLength(64).IsFixedLength();
+            entity.Property(e => e.SourceKey).HasMaxLength(100);
+            entity.Property(e => e.OrganizationName).HasMaxLength(100);
+            entity.Property(e => e.AccountName).HasMaxLength(100);
+            entity.Property(e => e.SnapshotDate).HasColumnType("datetime");
+            entity.Property(e => e.TotalMarketValue).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.TotalCost).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getdate())").HasColumnType("datetime");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getdate())").HasColumnType("datetime");
+        });
+
+        modelBuilder.Entity<StockSettlement>(entity =>
+        {
+            entity.HasKey(e => e.SettlementId).HasName("PK_StockSettlement");
+
+            entity.ToTable("StockSettlement", "FIN");
+
+            entity.HasIndex(e => new { e.UserId, e.YearMonth }, "UQ_StockSettlement_UserMonth").IsUnique();
+
+            entity.Property(e => e.SettlementId).HasColumnName("SettlementID");
+            entity.Property(e => e.UserId).HasColumnName("UserID");
+            entity.Property(e => e.YearMonth).HasMaxLength(7).IsFixedLength();
+            entity.Property(e => e.OrganizationName).HasMaxLength(100);
+            entity.Property(e => e.AccountName).HasMaxLength(100);
+            entity.Property(e => e.SnapshotDate).HasColumnType("datetime");
+            entity.Property(e => e.TotalMarketValue).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.TotalCost).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.SettledAt).HasDefaultValueSql("(getdate())").HasColumnType("datetime");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getdate())").HasColumnType("datetime");
         });
 
         modelBuilder.Entity<StrategyTag>(entity =>
@@ -813,6 +865,25 @@ public partial class JazzerLifeContext : DbContext
             entity.HasOne(d => d.StrategyTag).WithMany(p => p.Trades)
                 .HasForeignKey(d => d.StrategyTagId)
                 .HasConstraintName("FK_Trade_StrategyTag");
+        });
+
+        modelBuilder.Entity<UserSetting>(entity =>
+        {
+            entity.HasKey(e => e.SettingId).HasName("PK_UserSetting");
+
+            entity.ToTable("UserSetting", "FIN");
+
+            entity.HasIndex(e => new { e.UserId, e.SettingKey }, "UQ_UserSetting_UserKey").IsUnique();
+
+            entity.Property(e => e.SettingId).HasColumnName("SettingID");
+            entity.Property(e => e.UserId).HasColumnName("UserID");
+            entity.Property(e => e.SettingKey).HasMaxLength(100);
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
         });
 
         modelBuilder.Entity<User>(entity =>

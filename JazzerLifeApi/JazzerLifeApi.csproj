@@ -19,6 +19,8 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.10" />
+    <!-- PdfPig：解析台股集保／券商庫存 PDF 的文字與座標（Apache-2.0 授權，免費） -->
+    <PackageReference Include="PdfPig" Version="0.1.15" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
   </ItemGroup>
 
