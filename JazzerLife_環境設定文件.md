@@ -1,7 +1,8 @@
 # JazzerLife 環境設定文件
 
-**最後更新：** 2026 年 8 月 10 日（v11：Rent 模組公共電費邏輯重整 — 主表電費紀錄改存明確起訖月區間、公共電費改為快照欄位、套用入口收斂到「電費計算」頁並新增操作流程列，含 2 支新 SQL 腳本部署方式與 RENT 腳本執行狀態更正；另含 Trading 模組手機版日期區間篩選改版）
+**最後更新：** 2026 年 10 月 27 日（v12：Finance 模組四項修正 — 總覽每月收支漏算空字串標籤的明細、CSV 上傳空白標籤改存 NULL、下月預估開支卡片改橫向堆疊圖、新帳戶快照自動沿用上個月的專案資產綁定；**無 SQL 待執行**，Service Worker `CACHE_VERSION` v3 → v4）
 **歷史版本：**
+- v11（2026 年 8 月 10 日）：Rent 模組公共電費邏輯重整 — 主表電費紀錄改存明確起訖月區間、公共電費改為快照欄位、套用入口收斂到「電費計算」頁並新增操作流程列，含 2 支新 SQL 腳本部署方式與 RENT 腳本執行狀態更正；另含 Trading 模組手機版日期區間篩選改版
 - v10（2026 年 7 月 31 日）：Finance 模組多項調整 — 分類分析/總覽卡片 UI 精簡、專案摘要列表達成率改以「預期資產 vs 實際資產」計算、帳單管理新增編輯/刪除（`FIN.Bill` 補上 `BillID` 主鍵）、專案現金流命中明細新增「專案層面排除」機制，含 2 支新 SQL 腳本部署方式
 - v9（2026 年 7 月 30 日）：新增交易日誌模組 — cTrader Records + TradingView 訂單匯入分析，含出場方式分類/隱含成本/滑價分析，含 TRADING schema 部署方式
 - v8（2026 年 7 月 29 日）：租屋處電費管理模組複製圖片穩定性修正 — 整表/單一房間/電費明細三種複製皆改為離屏靜態表格擷取，並移除與 html2canvas 衝突的 sticky 房間欄位
@@ -433,14 +434,14 @@ finance.html / finance.js 為獨立的 Class 架構（FinanceApp）。已完成�
 | 功能區塊 | 新 API | 狀態 |
 |---|---|---|
 | 登入機制 | 共用 `/api/auth/*` | 完成（`_uidPrefix` 已改用已知 userId，不再查詢資料庫） |
-| 總覽（資產走勢/現金流） | `/api/finance/overview` | 完成 |
+| 總覽（資產走勢/現金流） | `/api/finance/overview` | 完成；2026-10-27 修正「未標記明細」判定（原只認 `Tag IS NULL`，漏掉空字串，詳見下方設計決策）。月份數上限 14（寫死在 `.Take(14)`，經確認維持不變） |
 | 明細（收支/分類分析/編輯/排除） | `/api/finance/details`、`/details/batch`、`/details/{id}/toggle-exclude`、`/category-analysis` | 完成 |
 | 專案列表（CRUD + KPI） | `/api/finance/projects` | 完成；摘要列表「達成率」改為「上月預期資產 vs 上月實際資產」（2026-07-31，詳見下方設計決策） |
-| 專案詳情 - 資產流 | `/api/finance/projects/{id}/assets`、`/assets/trend`、`/assets/apply-all-months` | 完成（追蹤實際淨資產變化） |
+| 專案詳情 - 資產流 | `/api/finance/projects/{id}/assets`、`/assets/trend`、`/assets/apply-all-months` | 完成（追蹤實際淨資產變化）；2026-10-27 新增 `InheritBindingsForMonthAsync`，上傳新帳戶快照時自動沿用上個月的綁定（詳見下方設計決策） |
 | 專案詳情 - 現金流 | `/api/finance/projects/{id}/cashflow-rules`、`/cashflow-matches`、`/cashflow-matches/{detailId}/toggle-exclude` | 完成（追蹤每月實際收支）；2026-07-31 新增「專案層面排除」— 命中規則的個別明細可單獨排除於某一專案外，不動 `Detail.IsExcluded`、不影響其他專案 |
 | 專案詳情 - 預期資產變化 | `/api/finance/projects/{id}/expected`、`/expected/generate` | 完成（重新設計：期初資產＝專案預算） |
 | 帳單管理（CRUD + 每月支出預測） | `/api/finance/bills`、`/bills/{billId}`（PUT/DELETE，2026-07-31 新增） | 完成；`FIN.Bill` 原無主鍵，已補上 `BillID` 供編輯/刪除定位單一筆（頻率展開計算 `computeMonthlyForecast` 保留於前端） |
-| 麻布資料上傳（原收支明細上傳） | `/api/finance/upload-details` | 完成（C# CsvHelper 解析，取代原 Python Flask + 排程機制） |
+| 麻布資料上傳（原收支明細上傳） | `/api/finance/upload-details` | 完成（C# CsvHelper 解析，取代原 Python Flask + 排程機制）；2026-10-27 空白標籤改存 NULL、寫入帳戶後自動沿用專案資產綁定 |
 | 存款帳戶總覽 + 修改結餘 | `/api/finance/accounts`、`/accounts/months`、`/accounts/balance` | 完成 |
 | 自動分類規則（2026-08-17 新增） | `/api/finance/auto-rules`（GET/POST）、`/{ruleId}`（PUT/DELETE）、`/{ruleId}/toggle`、`/reorder`、`/preview`、`/{ruleId}/run`、`/run-all` | 開發完成，**2 支 SQL 尚未執行**；取代舊的 `FIN.ins_Detail_Tag_With_Rule` 預存程序（詳見下方設計決策） |
 | 集保存摺 PDF 月結（2026-08-19 新增） | `/api/finance/stock-pdf/preview`、`/import`、`/imports`（GET/DELETE）、`/settle` | 開發完成，**1 支 SQL 尚未執行**（`finance_stock_pdf_import_2026-08-19.sql`），待測試機驗證 |
@@ -500,6 +501,33 @@ finance.html / finance.js 為獨立的 Class 架構（FinanceApp）。已完成�
 | 停用帳戶（`BankAccount set Activate=0`） | 同上，目標是帳戶資料表 | 保留在 SP，或於「存款帳戶」頁面手動處理 |
 
 **已知的原 SP 行為缺陷（種子腳本忠實重現，未擅自修正）：** `信貸投資案－台新證券劃撥` 規則要寫入 `Notes='劃撥'`，但排在它前面的 `Category='投資買賣' and 劃撥` 規則**沒有** `Tag is null` 守門，會先把 Tag 填掉，導致前者的「標籤 為空白」條件不成立、備註永遠寫不進去。若確實需要該備註，在 UI 用「▲」把它移到前面即可。同一條無守門的規則也會蓋掉人工標記過的標籤。
+
+### 設計決策 — 「未標記明細」同時認 NULL 與空字串（2026-10-27）
+
+`/api/finance/overview` 的每月收入/支出/結餘只統計「沒有標籤」的明細（有標籤代表已被歸到某個用途，不重複計入），原本的判定是 `d.Tag == null`。
+
+**問題**：`FIN.Detail` 裡「沒有標籤」其實有兩種存法。麻布匯出的 CSV 帶有「標籤」欄位時，儲存格空白會被 `CsvReader.GetField` 讀成空字串而非 null，所以 2026-07-14 之後匯入的明細，未標記的全部存成 `''`。查詢只認 NULL 的結果是 2026-08 起每月 Expense/Income 全變 0，總覽的「預估支出」圖表實際支出線就斷在 7 月。
+
+**處置**：
+1. 查詢端改為 `string.IsNullOrEmpty(d.Tag)`（EF 翻成 `Tag IS NULL OR Tag = ''`），同時涵蓋兩種存法；
+2. 寫入端 `FinanceUploadEndpoints` 新增 `GetNullIfBlank()`，標籤這類「有值才算被標記」的欄位空白時存 NULL，不再產生新的空字串。
+
+**尚未處理**：資料庫既有的 292 筆 `Tag = ''` 未清（新查詢已能涵蓋，不影響報表），且 `/api/finance/details/batch` 仍會把前端清空的格子存成空字串。
+
+### 設計決策 — 新帳戶快照自動沿用上個月的專案資產綁定（2026-10-27）
+
+專案詳情的「版本月份」下拉是從 `assets/trend` 來的，而那支 API 的月份清單是 **`FIN.ProjectAssetBinding` 已存在的月份** group 出來的，不是實際有帳戶快照的月份。新上傳的月份沒有任何綁定列就不會出現在下拉裡，專案的淨資產趨勢與達成率會停在最後一次手動按「套用到所有月份」的月份（實際發生過：最後一次套用是 2026-07-23／07-31，之後 08～10 月的快照全部看不到）。
+
+**處置**：`FinanceProjectAssetEndpoints.InheritBindingsForMonthAsync(db, userId, month)`，在寫入新帳戶快照後把「上一個有綁定的月份」的勾選複製到新月份。兩個呼叫點是 `/api/finance/upload-details`（麻布 CSV，`accountCount > 0` 時）與 `/api/finance/stock-pdf/settle`（集保結算也會寫一筆 `FIN.BankAccount`）。
+
+**刻意保守的三個地方**：
+1. 新月份已經有任何綁定（含 `Activate = 0` 的列）就整個專案跳過，不覆蓋使用者手動調整過的結果——唯一索引是 `(ProjectId, SnapshotMonth, 機構, 帳戶)`，只看啟用中的會在該月留有停用列時插出重複鍵；
+2. 只往回找比新月份舊的月份，補傳舊月份不會被更新月份的綁定污染；
+3. 來源帳戶在新月份不存在（帳戶已結清）就不建。
+
+兩個呼叫點都包在 try/catch：帳戶餘額已經進資料庫了，綁定沿用失敗不該讓整包上傳失敗，失敗時寫 log 並於回應帶 `bindingError`。
+
+**這段只影響「之後上傳的月份」**，已經缺掉的歷史月份不會自動補，需手動到專案詳情按一次「套用到所有月份」（**每個專案都要按**，綁定是按專案存的）。
 
 ---
 
@@ -578,6 +606,7 @@ git config --global --add safe.directory <資料夾路徑>
 | — | **Finance 模組（2026-08-19）：集保存摺 PDF 辨識與月結** — PdfPig 依文字座標還原表格、多份 PDF 逐份上傳、四道重複防呆（檔案雜湊／內容雜湊／同來源更新版／同月重複結算）、結算合併成一筆 `FIN.BankAccount`（集保／集保庫存） | 開發完成，**2 支 SQL 尚未於任一環境執行**，待測試機驗證 |
 | — | **Finance 模組（2026-08-19）：一般設定 + 結帳檢查清單** — 集保 PDF 密碼加密儲存（Data Protection）、每月結帳日設定、上傳頁顯示當月四項結帳待辦（麻布明細／麻布帳戶餘額／集保上傳／集保結算） | 開發完成，**1 支 SQL 尚未執行**（與上列共用 `finance_user_setting`） |
 | — | **Finance 模組（2026-08-19）：資產統計改依帳戶分類** — 總資產／總負債／淨資產不再用餘額正負號，改以「設定 › 帳戶分類」判定（含「資產」計資產、含「負債」計負債、含「忽視／忽略／不計入／排除」視為刻意排除、其餘提醒補設定），並修正「本月資產結餘」把負債重複加一次的既有 bug | 開發完成，**無 SQL 待執行** |
+| — | **Finance 模組（2026-10-27）：四項修正** — ① 總覽每月收支漏算空字串標籤的明細（8 月起支出全變 0）；② CSV 上傳空白標籤改存 NULL；③ 下月預估開支卡片改橫向堆疊圖（固定帳單 vs 變動支出中位數的佔比）；④ 新帳戶快照自動沿用上個月的專案資產綁定 | 開發完成，**無 SQL 待執行**，可直接部署 |
 | 五 | 上線前安全檢查清單 | 尚未開始 |
 
 ### 尚待處理事項
@@ -596,7 +625,7 @@ git config --global --add safe.directory <資料夾路徑>
 - [ ] Rent 模組 2026-08-10 異動部署前需先於 SSMS 依序執行 `scripts/sql/rent_schema_add_master_period_2026-08-10.sql` 與 `scripts/sql/rent_fix_initial_readings_2026-08-10.sql`（第 2 支會異動正式資料，先跑腳本內的 SELECT 確認受影響列）。
 - [ ] Rent 模組公共電費維持「度數平均分攤 × 各房約定電價」，主表的總電費金額不進入計算，因此分攤總額與台電實際帳單金額會有落差（各房電價與實際均價的差額由房東吸收或多收）。此為已知取捨，若日後希望兩者對齊，需改為「金額分攤」（公共電費總額 = 主表總金額 − Σ各房自身電費）。
 - [ ] Rent 模組公共電費的分攤分母採「目前啟用中的房間數」，期間內有房間退租／新入住時會與實際居住狀況有落差（已退租房間的用電仍會被扣除，只是不分攤公共部分）。
-- [ ] **Service Worker 靜態檔快取（2026-08-10 新增，部署後若畫面沒更新請先看這裡）**：`wwwroot/service-worker.js` 採「網路優先、失敗才回快取」策略快取同網域的 HTML/CSS/JS。手機（尤其是加到主畫面的 PWA）可能出現「HTML 是新的、CSS/JS 是舊的」的混合狀態，症狀是版面錯亂、新功能沒作用。`CACHE_VERSION` 已於 2026-08-19 隨「集保存摺月結／一般設定／資產統計改版」的前端改動由 `v2` 提升為 `v3`（activate 階段會清掉 `jazzerlife-shell-v2` 快取）。**往後每次含前端改動的部署，都要一併把此版本號往上加。**
+- [ ] **Service Worker 靜態檔快取（2026-08-10 新增，部署後若畫面沒更新請先看這裡）**：`wwwroot/service-worker.js` 採「網路優先、失敗才回快取」策略快取同網域的 HTML/CSS/JS。手機（尤其是加到主畫面的 PWA）可能出現「HTML 是新的、CSS/JS 是舊的」的混合狀態，症狀是版面錯亂、新功能沒作用。`CACHE_VERSION` 已於 2026-10-27 隨「下月預估開支橫向堆疊圖」的前端改動由 `v3` 提升為 `v4`（activate 階段會清掉 `jazzerlife-shell-v3` 快取；前一次是 2026-08-19 的 `v2` → `v3`）。**往後每次含前端改動的部署，都要一併把此版本號往上加。**
 - [ ] car 模組手機版沒有回 index.html 的入口（`car-layout.css` 直接 `.app-sidebar { display: none }`，且無頂端導覽列可放按鈕）。其餘四個模組已於 2026-08-10 以 `.navbar-home` 補上，car 需另行決定放在底部導覽列或車輛下拉選單旁。
 - [ ] Rent 模組「公共電費」試算需要使用者持續在「公共電費」頁籤登記主表（母表）讀數（期間需與電費月相同），否則會以 0 帶入；待實際使用幾個月後再評估試算準確度。
 - [ ] Rent 模組目前只有前端單一物件視角（無物件切換 UI），資料庫已支援多物件，未來如需擴充多個出租地址只需前端調整。
@@ -612,6 +641,11 @@ git config --global --add safe.directory <資料夾路徑>
 - [ ] 集保 PDF 的券商／帳號辨識是用內文正則（`帳號`、`○○證券`）盡力抓，抓不到時改用「持股代號重疊率 ≥ 60%」判斷是否為同一來源的更新版；若實際版面辨識不到來源，重複上傳的提醒可能會漏判，屆時把 `/finance/stock-pdf-test.html` 印出的原始文字提供出來調整規則。
 - [ ] 結帳檢查清單固定看「本月」（`DateTime.Today` 的年月）。若習慣是「每月 N 號結上個月的帳」，清單月份會對不上，需改為依結帳日推算目標月份或加月份切換，尚未決定。
 - [ ] 資料清理：`FIN.BankAccount` 有一筆「台新銀行」且 `AccountName` 為空字串、餘額 0 的髒資料（來源疑似某次 CSV 空列），會出現在資產統計的「未分類」提醒中，待確認來源後清除。
+- [ ] **資料清理：`FIN.Detail` 有 292 筆 `Tag = ''`（空字串）**，是 2026-07 中旬後 CSV 帶「標籤」欄位但儲存格空白造成的。2026-10-27 起查詢端已同時認 NULL 與空字串、上傳端也不再產生新的空字串，所以**不清也不影響報表**；要統一成單一表示法可執行 `UPDATE FIN.Detail SET Tag = NULL WHERE Tag = ''`（使用者 2026-10-27 決定暫不執行）。
+- [ ] `/api/finance/details/batch`（明細行內編輯批次儲存）仍會把前端清空的標籤格子存成空字串，尚未比照上傳端正規化成 NULL。同上，不影響報表，只是會繼續產生空字串列。
+- [ ] **專案資產綁定 2026-08～10 的缺口需手動補**：自動沿用只對「之後上傳的月份」生效。請到專案詳情按「套用到所有月份」，**專案 1、2、3 各按一次**（綁定是按專案存的）。按完 08～10 會一次補齊，之後 11 月上傳就會自己接上。
+- [ ] 總覽（資產走勢／現金流／預估支出）固定只回最新 14 個月（`FinanceOverviewEndpoints.cs` 的 `.Take(14)`），但資料庫實際有 28 個月的帳戶快照。2026-10-27 確認**維持現狀**，若日後想看完整歷史，改這個數字即可（`_getFinancialData` 取「去年同月」用的是固定位置 `col[12]`，至少要留 13 個月）。
+- [ ] 「總覽 › 預估支出」圖表的實際支出線**刻意不畫本月**（`finance.js` 的 `m < currentMonthIndex`），因為當月交易尚未累積完整，畫出來會異常偏低。這是設計行為不是 bug；若日後想看當月累積值，需另外用不同樣式的線或點區分已完成月份與累積中月份。
 - [ ] car 模組保養分類（2026-08-03 新增）：建議保養週期只會納入分類名稱**完全等於**「例行」「保養」的紀錄，需使用者自行在「保養分類」頁籤建立這兩個分類（系統不會自動 seed）；歷史上沒設分類的舊保養紀錄也不會被納入建議計算，除非事後手動補分類（目前無批次補分類的功能，需要的話可再開發）。
 
 ---

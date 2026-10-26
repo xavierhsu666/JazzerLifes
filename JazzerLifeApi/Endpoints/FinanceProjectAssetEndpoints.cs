@@ -183,6 +183,81 @@ namespace JazzerLifeApi.Endpoints
             });
         }
 
+        /// <summary>
+        /// 新的帳戶快照月份寫入後，把「上一個有綁定的月份」的勾選沿用到新月份。
+        ///
+        /// 版本月份下拉是從已存在的綁定反推的（見上面的 assets/trend），所以新月份如果沒有任何綁定，
+        /// 就不會出現在下拉裡，專案的淨資產趨勢與達成率會停在最後一次手動按「套用到所有月份」的月份。
+        /// 綁定對象幾乎每月都是同一組帳戶，與其要求使用者每個月手動重按一次，不如在上傳時自動延伸。
+        ///
+        /// 刻意保守的三個地方：
+        ///   1. 該月已經有任何綁定（含停用的）就整個專案跳過，不覆蓋使用者自己調整過的結果；
+        ///   2. 只沿用「比新月份舊」的最近一個月，重跑舊月份的上傳不會被未來的綁定污染；
+        ///   3. 來源帳戶在新月份不存在（例如帳戶已結清）就不建，避免綁到當月根本沒有餘額的帳戶。
+        /// 回傳新增的綁定筆數。
+        /// </summary>
+        internal static async Task<int> InheritBindingsForMonthAsync(JazzerLifeContext db, int userId, string month)
+        {
+            if (string.IsNullOrWhiteSpace(month)) return 0;
+
+            var monthKeys = (await db.BankAccounts
+                    .Where(a => a.UserId == userId && a.Activate == "1" && a.CreatedAt != null)
+                    .Select(a => new { a.OrganizationName, a.AccountName, a.CreatedAt })
+                    .ToListAsync())
+                .Where(a => a.CreatedAt!.Value.Year + "-" + a.CreatedAt.Value.Month.ToString("D2") == month)
+                .Select(a => a.OrganizationName + "｜" + a.AccountName)
+                .ToHashSet();
+            if (monthKeys.Count == 0) return 0;
+
+            var projectIds = await db.Projects
+                .Where(p => p.UserId == userId)
+                .Select(p => p.ProjectId)
+                .ToListAsync();
+            if (projectIds.Count == 0) return 0;
+
+            // 停用的綁定也要讀進來：唯一索引是 (ProjectId, SnapshotMonth, 機構, 帳戶)，
+            // 只看啟用中的會在該月留有停用列時插出重複鍵
+            var bindings = await db.ProjectAssetBindings
+                .Where(b => projectIds.Contains(b.ProjectId))
+                .ToListAsync();
+
+            var now = DateTime.Now;
+            int created = 0;
+
+            foreach (var projectId in projectIds)
+            {
+                var projectBindings = bindings.Where(b => b.ProjectId == projectId).ToList();
+                if (projectBindings.Any(b => b.SnapshotMonth == month)) continue;
+
+                var sourceMonth = projectBindings
+                    .Where(b => b.Activate && string.CompareOrdinal(b.SnapshotMonth, month) < 0)
+                    .Select(b => b.SnapshotMonth)
+                    .OrderByDescending(m => m, StringComparer.Ordinal)
+                    .FirstOrDefault();
+                if (sourceMonth == null) continue;
+
+                foreach (var source in projectBindings.Where(b => b.Activate && b.SnapshotMonth == sourceMonth))
+                {
+                    if (!monthKeys.Contains(source.OrganizationName + "｜" + source.AccountName)) continue;
+
+                    db.ProjectAssetBindings.Add(new ProjectAssetBinding
+                    {
+                        ProjectId = projectId,
+                        SnapshotMonth = month,
+                        OrganizationName = source.OrganizationName,
+                        AccountName = source.AccountName,
+                        Activate = true,
+                        CreatedAt = now,
+                        UpdatedAt = now,
+                    });
+                    created++;
+                }
+            }
+
+            if (created > 0) await db.SaveChangesAsync();
+            return created;
+        }
+
         private static int? GetUserId(ClaimsPrincipal user)
         {
             var idStr = user.FindFirstValue(ClaimTypes.NameIdentifier);

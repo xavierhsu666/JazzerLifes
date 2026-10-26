@@ -67,7 +67,9 @@ namespace JazzerLifeApi.Endpoints
                     .ToList();
 
                 var details = await db.Details
-                    .Where(d => d.UserId == userId && d.Activate == "1" && d.Tag == null && !d.IsExcluded)
+                    // 「沒有標籤」要同時認 NULL 與空字串：CSV 帶了標籤欄位但儲存格空白時會存成空字串，
+                    // 只比 NULL 的話那些明細會整批被漏掉，當月收支直接變 0
+                    .Where(d => d.UserId == userId && d.Activate == "1" && string.IsNullOrEmpty(d.Tag) && !d.IsExcluded)
                     .Select(d => new { d.Amount, d.TransactionDate })
                     .ToListAsync();
 

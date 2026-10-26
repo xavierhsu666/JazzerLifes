@@ -4525,18 +4525,85 @@ class FinanceApp {
         }
         var cardEl = document.getElementById("statForecast");
         if (cardEl) {
+            // 固定帳單／變動支出中位數的金額改由下方橫向堆疊圖呈現（含佔比），
+            // 這裡只留合計與估算依據，避免同樣的數字在卡片上出現兩次
             cardEl.innerHTML = `
-            <span>固定帳單 NT$ ${billTotal.toLocaleString()}</span>
-            <span>變動支出中位數 NT$ ${medianVariable.toLocaleString()}</span>
             <span class="stat-amount">預估 NT$ ${total.toLocaleString()}</span>
             <p class="stat-description">${nextMonthLabel}（依近 ${qualifyingMonths.length} 個月變動支出估算）</p>
         `;
         }
+        self._renderForecastBreakdownBar(billTotal, medianVariable);
         var noteEl = document.getElementById("forecastNote");
         if (noteEl) {
             noteEl.textContent =
                 "預估值 =「帳單管理」中下個月會發生的固定帳單 ＋ 近 3 個月變動支出的中位數（已排除跟固定帳單名稱對得上的交易，避免重複計算；用中位數是為了不被單一異常大額支出的月份拉偏）。";
         }
+    }
+
+    // 「下月預估開支」卡片裡的橫向堆疊圖：一條長條拆成「固定帳單」與「變動支出中位數」兩段，
+    // 用長度直接表達兩者的比例關係，比並排兩行數字更容易一眼看出哪一塊佔大宗。
+    // 只有一個 category（下個月），所以 x 軸整個隱藏，圖表退化成一條帶圖例的比例條。
+    _renderForecastBreakdownBar(billTotal, medianVariable) {
+        var el = document.getElementById("forecastBreakdownBar");
+        if (!el || typeof Highcharts === "undefined") return;
+
+        var total = billTotal + medianVariable;
+
+        // Highcharts.chart() 指到同一個容器時會自動銷毀前一個實例，沿用其他圖表的寫法直接覆寫即可
+        this.state.charts["forecastBreakdownBar"] = Highcharts.chart("forecastBreakdownBar", {
+            chart: {
+                type: "bar",
+                backgroundColor: "transparent",
+                spacing: [4, 0, 0, 0],
+                style: { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' },
+            },
+            title: { text: null },
+            credits: { enabled: false },
+            xAxis: { visible: false },
+            yAxis: {
+                visible: false,
+                min: 0,
+                // 軸上限釘在合計值（關掉 endOnTick 的自動進位），長條才會剛好佔滿卡片寬度，
+                // 不然 Highcharts 會把上限進位到下一個刻度，右邊留下一段空白看起來像沒算完
+                max: total || null,
+                endOnTick: false,
+                reversedStacks: false, // 固定帳單畫在左邊，順序跟 series 宣告一致
+            },
+            legend: {
+                align: "left",
+                x: -8,
+                itemStyle: { color: "#b0b0b0", fontWeight: "500", fontSize: "12px" },
+                itemHoverStyle: { color: "#ffffff" },
+                symbolRadius: 2,
+            },
+            tooltip: {
+                shared: false,
+                formatter: function () {
+                    var pct = total > 0 ? Math.round((this.y / total) * 1000) / 10 : 0;
+                    return `<b>${this.series.name}</b><br/>NT$ ${Math.round(this.y).toLocaleString()}（${pct}%）`;
+                },
+            },
+            plotOptions: {
+                series: {
+                    stacking: "normal",
+                    borderWidth: 0,
+                    pointWidth: 26,
+                    dataLabels: {
+                        enabled: true,
+                        // 段落太窄時 Highcharts 會自動裁掉標籤，避免文字溢出到隔壁色塊
+                        formatter: function () {
+                            var pct = total > 0 ? Math.round((this.y / total) * 100) : 0;
+                            return `${pct}%`;
+                        },
+                        style: { color: "#ffffff", fontWeight: "700", fontSize: "12px", textOutline: "none" },
+                    },
+                },
+            },
+            series: [
+                { name: `固定帳單 NT$ ${billTotal.toLocaleString()}`, data: [billTotal], color: "#ff5722" },
+                { name: `變動支出中位數 NT$ ${medianVariable.toLocaleString()}`, data: [medianVariable], color: "#ffab91" },
+            ],
+        });
     }
 
     // 共用：近 N 個月「變動支出」中位數計算（排除已對應到帳單管理固定帳單的交易，避免重複計算）。

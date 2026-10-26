@@ -467,10 +467,23 @@ INSERT INTO FIN.BankAccount
 VALUES
     ({userId.Value}, {organizationName}, {accountName}, 'TWD', NULL, {totalMarketValue}, NULL, {snapshotDate}, {now}, '1')");
 
+                // 結算同樣是「新增一個月份的帳戶快照」，比照 CSV 上傳把專案資產綁定延伸到這個月，
+                // 否則只靠集保結算建立的月份一樣不會出現在專案詳情的版本月份下拉裡
+                int inheritedBindings = 0;
+                try
+                {
+                    inheritedBindings = await FinanceProjectAssetEndpoints.InheritBindingsForMonthAsync(db, userId.Value, yearMonth);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Inherit project asset bindings failed after settle (userId={UserId}, month={Month})", userId, yearMonth);
+                }
+
                 var message = $"{yearMonth} 結算完成：{imports.Count} 份存摺、{stocks.Count} 檔庫存，總市值 {totalMarketValue:N0}，已寫入帳戶「{accountName}」";
                 if (removedAccounts > 0) message += $"（覆蓋原本的 {removedAccounts} 筆）";
+                if (inheritedBindings > 0) message += $"；專案資產綁定沿用 {inheritedBindings} 筆";
 
-                return Results.Ok(new { message, settlement, totalMarketValue, stockCount = stocks.Count, importCount = imports.Count });
+                return Results.Ok(new { message, settlement, totalMarketValue, stockCount = stocks.Count, importCount = imports.Count, inheritedBindings });
             });
         }
 

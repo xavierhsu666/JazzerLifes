@@ -77,7 +77,7 @@ namespace JazzerLifeApi.Endpoints
                                     Amount = ParseDecimal(Get(csv, headers, "金額")),
                                     TransactionDate = ParseDateOnly(Get(csv, headers, "消費日"), snapshotDate),
                                     PostingDate = ParseDateOnly(Get(csv, headers, "入帳日"), snapshotDate),
-                                    Tag = Get(csv, headers, "標籤"),
+                                    Tag = GetNullIfBlank(csv, headers, "標籤"),
                                     Notes = Get(csv, headers, "備註"),
                                     CreatedAt = snapshotDate,
                                     UpdatedAt = DateTime.Now,
@@ -147,6 +147,26 @@ namespace JazzerLifeApi.Endpoints
 
                 await db.SaveChangesAsync();
 
+                // 寫入新的帳戶快照後，把專案的資產綁定從上一個有綁定的月份延伸到這個月。
+                // 不做的話新月份不會出現在專案詳情的「版本月份」下拉裡（下拉是從既有綁定反推的），
+                // 專案的淨資產趨勢與達成率就會停在最後一次手動套用的月份。
+                int inheritedBindings = 0;
+                string? bindingError = null;
+                if (accountCount > 0)
+                {
+                    try
+                    {
+                        var snapshotMonth = snapshotDate.Year + "-" + snapshotDate.Month.ToString("D2");
+                        inheritedBindings = await FinanceProjectAssetEndpoints.InheritBindingsForMonthAsync(db, userId.Value, snapshotMonth);
+                    }
+                    catch (Exception ex)
+                    {
+                        // 帳戶餘額已經進資料庫了，綁定沿用失敗不該讓整包上傳跟著失敗
+                        logger.LogError(ex, "Inherit project asset bindings failed after upload (userId={UserId})", userId);
+                        bindingError = "專案資產綁定沿用失敗，請到專案詳情按「套用到所有月份」";
+                    }
+                }
+
                 // 明細寫入後自動套用一次「自動分類規則」。這裡刻意排在 SaveChanges 之後，
                 // 是為了讓新明細已經拿到 DetailID（規則執行結果的異動筆數要以 DetailID 去重）。
                 // 規則本身出錯不應該讓整包上傳失敗——明細已經進資料庫了，改回報成訊息就好。
@@ -184,6 +204,8 @@ namespace JazzerLifeApi.Endpoints
                 var message = $"明細 {detailCount} 筆、帳戶 {accountCount} 筆、庫存 {stockCount} 筆已寫入";
                 if (autoRuleCount > 0)
                     message += $"；自動分類規則 {autoRuleCount} 條命中 {autoRuleMatched} 筆、異動 {autoRuleChanged} 筆";
+                if (inheritedBindings > 0)
+                    message += $"；專案資產綁定沿用 {inheritedBindings} 筆";
 
                 return Results.Ok(new
                 {
@@ -195,6 +217,8 @@ namespace JazzerLifeApi.Endpoints
                     autoRuleMatched,
                     autoRuleChanged,
                     autoRuleError,
+                    inheritedBindings,
+                    bindingError,
                     skipped = skipped.Count > 0 ? skipped : null,
                     errors = errors.Count > 0 ? errors : null
                 });
@@ -205,6 +229,14 @@ namespace JazzerLifeApi.Endpoints
         {
             if (!headers.Contains(header)) return null;
             try { return csv.GetField(header); } catch { return null; }
+        }
+
+        // 標籤這種「有值才算被標記」的欄位，空白儲存格要存成 NULL 而不是空字串，
+        // 否則下游判斷「未標記」的查詢（例如總覽的每月收支）會漏掉這些明細
+        private static string? GetNullIfBlank(CsvReader csv, string[] headers, string header)
+        {
+            var value = Get(csv, headers, header);
+            return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
         }
 
         private static decimal ParseDecimal(string? s) =>
