@@ -37,44 +37,38 @@ namespace JazzerLifeApi
             [property: JsonPropertyName("releaseDate")] string? ReleaseDate
         );
 
-        /// <summary>Hangfire 排程與手動觸發共用的進入點：依序同步 FRED、台灣官方資料，單一來源失敗不影響另一來源。</summary>
+        /// <summary>
+        /// Hangfire 排程與手動觸發共用的進入點：依序同步 FRED、台灣官方資料，單一來源失敗不影響另一來源。
+        ///
+        /// 每個步驟仍然各自接住例外（一個來源掛掉不該讓其他來源不同步），但**全部跑完後會把收集到的例外丟出去**。
+        /// 原本是只記 log 不往上丟，Hangfire 收不到例外就一律把 job 標成 Succeeded、也不會重試，
+        /// 於是「四個來源全失敗」和「四個來源全成功」在 Dashboard 上長得一模一樣；IIS 底下又看不到 Console log，
+        /// 實務上等於完全無法察覺同步失敗。現在有任何步驟失敗就讓 job 標 Failed，重試與通知才有依據。
+        /// </summary>
         public async Task SyncAllAsync()
         {
-            try
+            var failures = new List<Exception>();
+
+            async Task RunStepAsync(string stepName, Func<Task> step)
             {
-                await SyncFredAsync();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "FRED 指標同步發生未預期例外");
+                try
+                {
+                    await step();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "{Step}發生未預期例外", stepName);
+                    failures.Add(new InvalidOperationException($"{stepName}失敗：{ex.Message}", ex));
+                }
             }
 
-            try
-            {
-                await SyncTwGovAsync();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "台灣官方指標同步發生未預期例外");
-            }
+            await RunStepAsync("FRED 指標同步", SyncFredAsync);
+            await RunStepAsync("台灣官方指標同步", SyncTwGovAsync);
+            await RunStepAsync("Yahoo Finance 市場指標同步", SyncYahooAsync);
+            await RunStepAsync("示警規則評估", EvaluateAlertRulesAsync);
 
-            try
-            {
-                await SyncYahooAsync();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Yahoo Finance 市場指標同步發生未預期例外");
-            }
-
-            try
-            {
-                await EvaluateAlertRulesAsync();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "示警規則評估發生未預期例外");
-            }
+            if (failures.Count > 0)
+                throw new AggregateException($"總經資料同步有 {failures.Count} 個步驟失敗", failures);
         }
 
         /// <summary>資料同步完成後比對使用者自訂門檻，觸發者寫入 EconAlertLog。同一規則同日最多觸發一次，避免灌爆通知。</summary>
@@ -171,8 +165,10 @@ namespace JazzerLifeApi
             }
             catch (Exception ex)
             {
+                // 往上丟給 SyncAllAsync 收集：Process.Start 因權限問題瞬間失敗時，
+                // 原本只記 log 就 return，job 照樣被標成 Succeeded，失敗完全看不出來。
                 _logger.LogError(ex, "fetch_fred.py 執行失敗");
-                return;
+                throw;
             }
 
             await UpsertValuesAsync(ParseFetchResults(output, "fetch_fred.py"));
@@ -200,8 +196,10 @@ namespace JazzerLifeApi
             }
             catch (Exception ex)
             {
+                // 往上丟給 SyncAllAsync 收集：Process.Start 因權限問題瞬間失敗時，
+                // 原本只記 log 就 return，job 照樣被標成 Succeeded，失敗完全看不出來。
                 _logger.LogError(ex, "fetch_tw_gov.py 執行失敗");
-                return;
+                throw;
             }
 
             await UpsertValuesAsync(ParseFetchResults(output, "fetch_tw_gov.py"));
@@ -231,8 +229,10 @@ namespace JazzerLifeApi
             }
             catch (Exception ex)
             {
+                // 往上丟給 SyncAllAsync 收集：Process.Start 因權限問題瞬間失敗時，
+                // 原本只記 log 就 return，job 照樣被標成 Succeeded，失敗完全看不出來。
                 _logger.LogError(ex, "fetch_yahoo.py 執行失敗");
-                return;
+                throw;
             }
 
             await UpsertValuesAsync(ParseFetchResults(output, "fetch_yahoo.py"));
@@ -249,8 +249,9 @@ namespace JazzerLifeApi
             }
             catch (JsonException ex)
             {
+                // 同理：腳本回傳爛資料時只記 log 會讓這次同步「靜悄悄地什麼都沒做」，往上丟才會標 Failed。
                 _logger.LogError(ex, "{Script} 回傳內容不是合法 JSON，原始輸出：{Output}", scriptName, output);
-                return new List<FetchResultDto>();
+                throw;
             }
         }
 

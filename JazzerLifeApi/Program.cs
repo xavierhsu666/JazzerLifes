@@ -158,10 +158,34 @@ app.MapPost("/api/tasks/run-python", (string? note) =>
 });
 
 // 總經指標資料同步：每日排程 + 手動觸發（供測試/立即更新使用）
+// Hangfire 的 cron 預設用 UTC 解讀，原本的 Cron.Daily(6) 實際是台灣時間下午 2 點（UTC+8），
+// 與「每天早上 6 點更新」的預期差了 8 小時，因此明確指定時區。
+// 時區 ID 在 Windows 與 Linux 下不同名，取不到就退回 IANA 名稱，兩邊都取不到才退回 UTC（至少排程還能跑）。
+TimeZoneInfo macroSyncTimeZone;
+try
+{
+	macroSyncTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Taipei Standard Time");
+}
+catch (Exception)
+{
+	try
+	{
+		macroSyncTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Asia/Taipei");
+	}
+	catch (Exception ex)
+	{
+		macroSyncTimeZone = TimeZoneInfo.Utc;
+		Console.Error.WriteLine(
+			$"[警告] 找不到台北時區（{ex.Message}），macro-daily-sync 將以 UTC 解讀 cron，" +
+			"實際觸發時間會是台灣時間下午 2 點。");
+	}
+}
+
 RecurringJob.AddOrUpdate<EconDataSyncRunner>(
 	"macro-daily-sync",
 	job => job.SyncAllAsync(),
-	Cron.Daily(6));
+	"0 6 * * *",
+	new RecurringJobOptions { TimeZone = macroSyncTimeZone });
 
 app.MapPost("/api/tasks/run-macro-sync", (ClaimsPrincipal user) =>
 {
