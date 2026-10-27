@@ -443,6 +443,11 @@ class FinanceApp {
                 { id: "upload-detail", label: "麻布資料" },
                 { id: "upload-tdcc", label: "集保存摺" },
             ],
+            loan: [
+                { id: "loan-capacity", label: "信貸上限" },
+                { id: "loan-compare", label: "方案比較" },
+                { id: "loan-schedule", label: "攤還試算" },
+            ],
         };
 
         this.init();
@@ -892,6 +897,14 @@ class FinanceApp {
                 break;
             case "settings-general":
                 this.bindGeneralSettingsEvents();
+                break;
+            // 貸款試算三頁都是純前端計算（finance-loan.js / finance-loan-ui.js），不需要先載資料
+            case "loan-capacity":
+            case "loan-compare":
+            case "loan-schedule":
+                if (window.FinanceLoanUI) {
+                    window.FinanceLoanUI.initView(viewId);
+                }
                 break;
             case "asset-trend":
                 $("#assetTrendChart").empty();

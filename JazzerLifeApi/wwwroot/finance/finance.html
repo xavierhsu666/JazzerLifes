@@ -84,6 +84,12 @@
             <span class="nav-text">存款帳戶</span>
           </a>
         </li>
+        <li class="nav-item" data-feature="loan">
+          <a href="#" class="nav-link">
+            <span class="nav-icon">🧮</span>
+            <span class="nav-text">試算</span>
+          </a>
+        </li>
         <li class="nav-item" data-feature="settings">
           <a href="#" class="nav-link">
             <span class="nav-icon">⚙️</span>
@@ -782,6 +788,192 @@
       </section>
       <!-- 投資組合 - 股票 -->
       <!-- 設定 - 一般設定 -->
+      <!-- 試算 - 信貸上限：認列收入（年收入＋股票／活存折算）× DBR 倍數，再扣掉已有的無擔保負債 -->
+      <section class="content-view hidden" id="view-loan-capacity" data-view="loan-capacity">
+        <div class="view-header">
+          <h2 class="view-title">信用貸款上限試算</h2>
+          <div class="view-actions">
+            <button class="btn-secondary" id="loanResetInputs" type="button">回復預設值</button>
+          </div>
+        </div>
+
+        <div class="pd-card">
+          <h3 class="pd-card-title">條件輸入</h3>
+          <div class="pd-form loan-form">
+            <label>年收入（元）
+              <input type="number" id="loanAnnualIncome" step="10000" min="0" />
+            </label>
+            <label>股票市值（元）
+              <input type="number" id="loanStockValue" step="10000" min="0" />
+            </label>
+            <label>活存餘額（元）
+              <input type="number" id="loanSavingsValue" step="10000" min="0" />
+            </label>
+            <label>資產認列成數（佔年收入 %）
+              <input type="number" id="loanAssetRecogPct" step="5" min="0" max="100" />
+            </label>
+            <label>DBR 倍數
+              <input type="number" id="loanDbrMultiple" step="1" min="1" max="30" />
+            </label>
+            <label>年利率（%）
+              <input type="number" id="loanRate" step="0.05" min="0.1" />
+            </label>
+            <label>貸款年限（年）
+              <input type="number" id="loanYears" step="1" min="1" max="10" />
+            </label>
+            <label>已有無擔保負債餘額（元）
+              <input type="number" id="loanExistingDebt" step="10000" min="0" />
+            </label>
+            <label>已有貸款月付（元）
+              <input type="number" id="loanExistingMonthly" step="1000" min="0" />
+            </label>
+            <label>自訂試算金額（元，留空＝用上限）
+              <input type="number" id="loanAmountOverride" step="10000" min="0" />
+            </label>
+          </div>
+          <div class="button-group">
+            <button class="btn-primary" id="loanApplyMax" type="button">把可貸上限填入試算金額</button>
+            <button class="btn-secondary" id="loanClearOverride" type="button">清空自訂金額</button>
+          </div>
+        </div>
+
+        <div class="pd-summary loan-summary">
+          <div class="pd-summary-item">
+            <span>還可以借</span>
+            <strong id="loanSumAvailable">—</strong>
+            <span class="pd-muted" id="loanSumAvailableSub"></span>
+          </div>
+          <div class="pd-summary-item">
+            <span>DBR 總額度</span>
+            <strong id="loanSumDbrCap">—</strong>
+            <span class="pd-muted" id="loanSumDbrCapSub"></span>
+          </div>
+          <div class="pd-summary-item">
+            <span>每月應繳</span>
+            <strong id="loanSumPay">—</strong>
+            <span class="pd-muted" id="loanSumPaySub"></span>
+          </div>
+          <div class="pd-summary-item">
+            <span>總利息</span>
+            <strong id="loanSumInterest">—</strong>
+            <span class="pd-muted" id="loanSumInterestSub"></span>
+          </div>
+        </div>
+
+        <div class="pd-card">
+          <h3 class="pd-card-title">認列收入怎麼算出來的</h3>
+          <p class="pd-muted">年收入全額認列；股票與活存各自認列「該資產金額」與「年收入 × 認列成數」中較小的那個，所以資產再多也只能各補到年收入的一成數。</p>
+          <div id="loanRecogTable"></div>
+        </div>
+
+        <div class="pd-card">
+          <h3 class="pd-card-title">DBR 倍數與可貸空間</h3>
+          <p class="pd-muted">DBR 管的是無擔保負債的「總餘額」除以認列月收入，所以已經背著的信貸、卡循餘額要先扣掉；年限與利率不影響這條上限，只影響月付跟總利息。</p>
+          <div id="loanDbrTable"></div>
+          <div id="loanLoanInfo"></div>
+        </div>
+
+        <div class="pd-card">
+          <h3 class="pd-card-title">怎麼把額度拉到最大</h3>
+          <p class="pd-muted">每一列都是把目前條件改掉其中一項後重算的結果，依「多借到的金額」排序，所以最上面那項最值得先去處理。</p>
+          <div id="loanAdvice"></div>
+        </div>
+
+        <div class="pd-card">
+          <h3 class="pd-card-title">年限 × 利率 的還款壓力</h3>
+          <div id="loanSensitivity"></div>
+        </div>
+      </section>
+
+      <!-- 試算 - 方案比較：同一筆金額在不同利率／年限下的月付與總利息 -->
+      <section class="content-view hidden" id="view-loan-compare" data-view="loan-compare">
+        <div class="view-header">
+          <h2 class="view-title">方案比較</h2>
+          <div class="view-actions">
+            <button class="btn-primary" id="loanAddScenario" type="button">新增方案</button>
+            <button class="btn-secondary" id="loanResetScenarios" type="button">重設方案</button>
+          </div>
+        </div>
+
+        <div class="pd-card">
+          <h3 class="pd-card-title">方案設定</h3>
+          <div class="loan-scenario-head">
+            <span>名稱</span><span>金額（元）</span><span>利率（%）</span><span>年限</span><span></span>
+          </div>
+          <div id="loanScenarioRows"></div>
+        </div>
+
+        <div class="pd-card">
+          <h3 class="pd-card-title">比較結果</h3>
+          <p class="pd-muted">月付最低與總利息最低的格子會標示出來——兩者通常不是同一個方案，年限拉長會讓月付變輕但總利息變多。</p>
+          <div id="loanCompareTable"></div>
+        </div>
+
+        <div class="chart-container">
+          <div id="loanCompareChart"></div>
+        </div>
+      </section>
+
+      <!-- 試算 - 攤還與提前還款 -->
+      <section class="content-view hidden" id="view-loan-schedule" data-view="loan-schedule">
+        <div class="view-header">
+          <h2 class="view-title">攤還與提前還款</h2>
+        </div>
+
+        <div class="pd-card">
+          <h3 class="pd-card-title">提前還款設定</h3>
+          <p class="pd-muted">金額、利率、年限沿用「信用貸款上限試算」那頁的條件。銀行一般不會因為多還本金而重算月付，所以效果是「提早還完、少付利息」；信貸多半前 1～2 年內提前清償要收違約金，填進去才看得到淨省多少。</p>
+          <div class="pd-form loan-form">
+            <label>每月額外還本（元）
+              <input type="number" id="loanExtraMonthly" step="1000" min="0" />
+            </label>
+            <label>一次性提前還本（元）
+              <input type="number" id="loanLumpAmount" step="10000" min="0" />
+            </label>
+            <label>一次性還本在第幾期
+              <input type="number" id="loanLumpMonth" step="1" min="1" />
+            </label>
+            <label>提前清償違約金（%）
+              <input type="number" id="loanPenaltyPct" step="0.5" min="0" max="10" />
+            </label>
+          </div>
+        </div>
+
+        <div class="pd-summary loan-summary">
+          <div class="pd-summary-item">
+            <span>試算金額</span>
+            <strong id="loanSchedLoan">—</strong>
+          </div>
+          <div class="pd-summary-item">
+            <span>原總利息</span>
+            <strong id="loanSchedBaseInterest">—</strong>
+          </div>
+          <div class="pd-summary-item">
+            <span>提前還款後總利息</span>
+            <strong id="loanSchedNewInterest">—</strong>
+            <span class="pd-muted" id="loanSchedNewInterestSub"></span>
+          </div>
+          <div class="pd-summary-item">
+            <span>扣掉違約金淨省</span>
+            <strong id="loanSchedSaved">—</strong>
+            <span class="pd-muted" id="loanSchedSavedSub"></span>
+          </div>
+        </div>
+
+        <div class="pd-card">
+          <h3 class="pd-card-title">年度彙總</h3>
+          <div class="loan-table-scroll" id="loanScheduleYearly"></div>
+        </div>
+
+        <div class="pd-card">
+          <h3 class="pd-card-title">每期明細</h3>
+          <div class="button-group">
+            <button class="btn-secondary" id="loanShowAllMonths" type="button">顯示全部</button>
+          </div>
+          <div class="loan-table-scroll" id="loanScheduleMonthly"></div>
+        </div>
+      </section>
+
       <section class="content-view hidden" id="view-settings-general" data-view="settings-general">
         <div class="view-header">
           <h2 class="view-title">一般設定</h2>
@@ -887,6 +1079,10 @@
         <span class="app-bottom-nav-icon">🪢</span>
         <span>上傳</span>
       </div>
+      <div class="more-menu-item" data-feature="loan">
+        <span class="app-bottom-nav-icon">🧮</span>
+        <span>試算</span>
+      </div>
       <div class="more-menu-item" data-feature="settings">
         <span class="app-bottom-nav-icon">⚙️</span>
         <span>設定</span>
@@ -921,6 +1117,9 @@
   <script src="../assets/js/upload.js"></script>
   <script src="../assets/js/frequency_tool.js"></script>
   <script src="../assets/js/test.js"></script>
+  <!-- 貸款試算：計算邏輯與畫面層分開，finance.js 只負責在切到 loan-* 頁面時呼叫 FinanceLoanUI -->
+  <script src="../assets/js/finance-loan.js"></script>
+  <script src="../assets/js/finance-loan-ui.js"></script>
   <script src="../assets/js/finance.js"></script>
   <script>
     // 註冊共用 Service Worker，讓離線或訊號不穩時仍能開啟頁面外殼（API 資料一律不快取，見 service-worker.js 說明）

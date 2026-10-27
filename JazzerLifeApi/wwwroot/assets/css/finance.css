@@ -2551,3 +2551,224 @@ button {
         max-width: none;
     }
 }
+
+/* ===================== 貸款試算（試算 → 貸款上限／方案比較／攤還試算） ===================== */
+
+/* 條件欄位比專案詳情多，排四欄才不會把頁面拉太長 */
+.loan-form {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* .button-group 本身沒有上邊距，直接接在表單格線後面會貼到最後一排輸入框上 */
+.loan-form + .button-group {
+    margin-top: var(--spacing-lg);
+    justify-content: flex-start;
+}
+
+.loan-summary .pd-summary-item strong {
+    display: block;
+    margin-bottom: 2px;
+    color: var(--color-accent-blue);
+    font-size: 1.25rem;
+}
+
+.loan-summary .pd-summary-item .pd-muted {
+    margin: 0;
+    font-size: 0.75rem;
+}
+
+/* 試算結果一律用一般 table（資料是即時算出來的，不需要 AG Grid 的排序/編輯） */
+.loan-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    color: var(--color-text-primary);
+}
+
+.loan-table th,
+.loan-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--color-gray-800);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.loan-table thead th {
+    color: var(--color-text-secondary);
+    font-weight: 600;
+    background-color: var(--color-tertiary);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.loan-table tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.04);
+}
+
+.loan-table .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.loan-table .pos {
+    color: var(--color-accent-green);
+}
+
+/* 被標成最佳/最大的格子：矩陣裡的最高額度、比較表裡最低的月付與總利息 */
+.loan-table .is-best {
+    color: var(--color-accent-green);
+    font-weight: 700;
+    background-color: rgba(76, 175, 80, 0.12);
+}
+
+/* 實際決定額度的那一道限制 */
+.loan-table tr.is-binding {
+    background-color: rgba(255, 152, 0, 0.1);
+}
+
+.loan-table tr.is-grace td {
+    color: var(--color-text-secondary);
+}
+
+.loan-table .loan-formula {
+    white-space: normal;
+    color: var(--color-text-secondary);
+    font-size: 0.78rem;
+}
+
+.loan-matrix th {
+    color: var(--color-text-secondary);
+}
+
+/* 矩陣格子裡的第二行（總利息），字級壓小才不會跟月付搶視線 */
+.loan-sub {
+    color: var(--color-text-secondary);
+    font-size: 0.72rem;
+}
+
+.loan-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+}
+
+.loan-badge.warn {
+    color: #ffd49a;
+    background-color: rgba(255, 152, 0, 0.18);
+    border: 1px solid rgba(255, 152, 0, 0.35);
+}
+
+.loan-badge.ok {
+    color: #b7e4ba;
+    background-color: rgba(76, 175, 80, 0.16);
+    border: 1px solid rgba(76, 175, 80, 0.32);
+}
+
+/* 攤還表最長 480 列，給固定高度加內捲，避免整頁被拉得很長 */
+.loan-table-scroll {
+    max-height: 420px;
+    overflow: auto;
+}
+
+/* 欄位多的結果表（比較表有 8 欄）在視窗變窄時會被裁掉，統一讓容器橫向捲動 */
+#loanConstraints,
+#loanAdvice,
+#loanSensitivity,
+#loanCompareTable {
+    overflow-x: auto;
+}
+
+/* 方案比較的可編輯列：欄寬跟上方的標題列對齊 */
+.loan-scenario-head,
+.loan-scenario-row {
+    display: grid;
+    grid-template-columns: minmax(140px, 2fr) repeat(4, minmax(72px, 1fr)) 72px;
+    gap: 8px;
+    align-items: center;
+}
+
+.loan-scenario-head {
+    margin-bottom: 6px;
+    color: var(--color-text-secondary);
+    font-size: 0.78rem;
+}
+
+.loan-scenario-row {
+    margin-bottom: 8px;
+}
+
+/* 每格的小標：桌機版由上方標題列顯示欄名，這裡收起來 */
+.loan-scenario-cell > span {
+    display: none;
+}
+
+.loan-scenario-row input {
+    width: 100%;
+    min-height: 38px;
+    padding: 8px 10px;
+    border: 1px solid var(--color-gray-700);
+    border-radius: var(--radius-md);
+    background-color: var(--color-tertiary);
+    color: var(--color-text-primary);
+    font-size: 0.85rem;
+}
+
+.loan-scenario-row .loan-scenario-del {
+    min-height: 38px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: var(--radius-md);
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+@media (max-width: 1100px) {
+    .loan-form {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 767px) {
+    .loan-form {
+        grid-template-columns: 1fr;
+    }
+
+    /* 手機上方案列改成兩欄堆疊，否則六個欄位會被壓到不能輸入 */
+    .loan-scenario-head {
+        display: none;
+    }
+
+    .loan-scenario-row {
+        grid-template-columns: 1fr 1fr;
+        align-items: end;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--color-gray-800);
+    }
+
+    .loan-scenario-cell:first-child {
+        grid-column: 1 / -1;
+    }
+
+    /* 標題列收起來了，改由每格自己的小標說明欄位是什麼 */
+    .loan-scenario-cell > span {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--color-text-secondary);
+        font-size: 0.75rem;
+    }
+
+    .loan-table {
+        font-size: 0.78rem;
+    }
+
+    .loan-table th,
+    .loan-table td {
+        padding: 6px 6px;
+    }
+
+    .loan-table-scroll {
+        overflow-x: auto;
+    }
+}
